@@ -15,6 +15,7 @@ def rerank(
     candidates: list[dict],
     top_k: int = 5,
     batch_size: int = 8,
+    model: CrossEncoder | None = None,
 ) -> list[dict]:
     """对 Hybrid Retrieval 返回的候选 Chunk 进行精细相关性排序。"""
     if not candidates:
@@ -22,7 +23,7 @@ def rerank(
 
     # 优先用 GPU；没有 GPU 时自动改用 CPU。
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = CrossEncoder(MODEL_NAME, device=device)
+    model = model or CrossEncoder(MODEL_NAME, device=device)
 
     # Cross-Encoder 会同时阅读“问题 + 文本”，为每一对生成相关性分数。
     pairs = [(query, item["chunk"]["text"]) for item in candidates]

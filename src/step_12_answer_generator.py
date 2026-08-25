@@ -28,15 +28,17 @@ SYSTEM_PROMPT = """
 """
 
 
-def format_context(results: list[dict]) -> tuple[str, list[str]]:
-    """把检索结果转换为大模型可读的带编号证据文本。"""
+def format_context(results: list[dict]) -> tuple[str, list[dict]]:
+    """把检索结果转换为模型上下文，并保留界面展示所需的来源信息。"""
     sections = []
-    source_lines = []
+    source_records = []
 
     for index, result in enumerate(results, start=1):
         chunk = result["chunk"]
+        citation = f"[S{index}]"
+
         source_label = (
-            f"[S{index}] {chunk['source_file']}，"
+            f"{citation} {chunk['source_file']}，"
             f"第 {chunk['page_number']} 页，"
             f"{chunk['document_type']}"
         )
@@ -45,9 +47,20 @@ def format_context(results: list[dict]) -> tuple[str, list[str]]:
             f"{source_label}\n"
             f"{chunk['text']}"
         )
-        source_lines.append(source_label)
 
-    return "\n\n".join(sections), source_lines
+        # 保持与发送给大模型的证据顺序一致，确保 [S编号] 可追溯。
+        source_records.append(
+            {
+                "citation": citation,
+                "source_file": chunk["source_file"],
+                "page_number": chunk["page_number"],
+                "document_type": chunk["document_type"],
+                "language": chunk["language"],
+                "text_preview": chunk["text"][:500],
+            }
+        )
+
+    return "\n\n".join(sections), source_records
 
 
 def build_client() -> OpenAI:
@@ -151,7 +164,11 @@ def main() -> None:
 
     print("\n=== 检索证据来源 ===")
     for source in sources:
-        print(source)
+        print(
+            f"{source['citation']} {source['source_file']}，"
+            f"第 {source['page_number']} 页，"
+            f"{source['document_type']}"
+        )
 
 
 if __name__ == "__main__":

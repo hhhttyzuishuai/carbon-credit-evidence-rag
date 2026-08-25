@@ -72,7 +72,17 @@ if submitted:
                 st.caption("以下为本次回答可使用的候选证据；回答中的 [S编号] 对应其来源。")
 
                 for source in sources:
-                    st.code(source, language=None)
+                    title = (
+                        f"{source['citation']} {source['source_file']} "
+                        f"· 第 {source['page_number']} 页"
+                    )
+
+                    with st.expander(title):
+                        st.caption(
+                            f"文档类型：{source['document_type']} ｜ "
+                            f"语言：{source['language']}"
+                        )
+                        st.write(source["text_preview"])
 
             except Exception as error:
                 st.error(

@@ -72,7 +72,17 @@ PDF 原始文件、处理中间结果和向量索引仅保存在本地，不提�
 
 ## 本地运行
 
-### 1. 配置密钥
+### 1. 安装依赖
+
+先根据本机的 GPU、CUDA 与操作系统安装 PyTorch；本项目开发环境已验证 CUDA 可用。
+
+随后安装其余项目依赖：
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+### 2. 配置密钥
 
 在项目根目录创建 `.env`：
 
@@ -82,7 +92,7 @@ DEEPSEEK_API_KEY=你的实际密钥
 
 `.env` 已被 Git 忽略，不应提交或分享。
 
-### 2. 启动演示界面
+### 3. 启动演示界面
 
 ```powershell
 python -m streamlit run src\step_13_streamlit_app.py
@@ -90,7 +100,7 @@ python -m streamlit run src\step_13_streamlit_app.py
 
 浏览器访问终端显示的本地地址，通常为 `http://localhost:8501`。
 
-### 3. 运行检索评估
+### 4. 运行检索评估
 
 ```powershell
 python src\step_11_evaluate_retrieval.py

@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -28,13 +29,13 @@ def file_sha256(file_path: Path) -> str:
     """计算文件哈希，用于确认索引没有过期。"""
     return hashlib.sha256(file_path.read_bytes()).hexdigest()
 
-
+@lru_cache(maxsize=1)
 def load_chunks() -> list[dict]:
     """读取全部 Chunk，并保持与建索引时相同的顺序。"""
     with CHUNKS_PATH.open("r", encoding="utf-8") as file:
         return [json.loads(line) for line in file]
 
-
+@lru_cache(maxsize=1)
 def load_index() -> tuple[list[dict], np.ndarray, dict]:
     """加载 Chunk、向量矩阵和索引清单，并检查它们是否匹配。"""
     chunks = load_chunks()
@@ -62,6 +63,10 @@ def load_index() -> tuple[list[dict], np.ndarray, dict]:
 
     return chunks, embeddings, manifest
 
+@lru_cache(maxsize=1)
+def get_model() -> SentenceTransformer:
+    """在同一进程中只加载一次本地 Embedding 模型。"""
+    return SentenceTransformer(MODEL_NAME, device=DEVICE)
 
 def matches_filters(
     chunk: dict,
@@ -94,7 +99,7 @@ def search(
     chunks, embeddings, _ = load_index()
 
     # E5 约定：用户问题必须加 query: 前缀。
-    model = SentenceTransformer(MODEL_NAME, device=DEVICE)
+    model = get_model()
 
     query_embedding = model.encode(
         [f"query: {query}"],

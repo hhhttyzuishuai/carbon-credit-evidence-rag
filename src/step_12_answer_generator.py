@@ -85,7 +85,7 @@ def generate_answer(
     language: str | None = None,
     document_type: str | None = None,
     authority_level: str | None = None,
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[dict]]:
     """执行 Hybrid 检索，并基于证据生成带引用的回答。"""
 
     # 当前评估中 Hybrid 表现最好，因此作为 V1 生成层的默认检索器。

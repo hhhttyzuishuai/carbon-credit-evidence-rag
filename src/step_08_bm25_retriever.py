@@ -1,6 +1,7 @@
 import argparse
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 import jieba
@@ -14,8 +15,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CHUNKS_PATH = PROJECT_ROOT / "data" / "processed" / "pdf_chunks.jsonl"
 
 
+@lru_cache(maxsize=1)
 def load_chunks() -> list[dict]:
-    """读取全部 Chunk。"""
+    """读取全部 Chunk；同一进程内只读取一次。"""
     with CHUNKS_PATH.open("r", encoding="utf-8") as file:
         return [json.loads(line) for line in file]
 
@@ -62,14 +64,13 @@ def matches_filters(
     )
 
 
-def search(
-    query: str,
-    top_k: int = 5,
-    language: str | None = None,
-    document_type: str | None = None,
-    authority_level: str | None = None,
-) -> list[tuple[dict, float]]:
-    """用 BM25 返回关键词匹配最好的 Chunk。"""
+@lru_cache(maxsize=16)
+def build_bm25_index(
+    language: str | None,
+    document_type: str | None,
+    authority_level: str | None,
+) -> tuple[list[dict], BM25Okapi | None]:
+    """按过滤条件构建并缓存 BM25 索引。"""
     chunks = load_chunks()
 
     candidates = [
@@ -83,17 +84,36 @@ def search(
         )
     ]
 
+    # 没有候选资料时，不构建空 BM25 索引。
     if not candidates:
-        return []
+        return candidates, None
 
-    # 每份资料按自己的语言切词；查询则自动识别语言。
     tokenized_corpus = [
         tokenize(chunk["text"], chunk["language"])
         for chunk in candidates
     ]
 
-    bm25 = BM25Okapi(tokenized_corpus)
+    return candidates, BM25Okapi(tokenized_corpus)
 
+
+def search(
+    query: str,
+    top_k: int = 5,
+    language: str | None = None,
+    document_type: str | None = None,
+    authority_level: str | None = None,
+) -> list[tuple[dict, float]]:
+    """用 BM25 返回关键词匹配最好的 Chunk。"""
+    candidates, bm25 = build_bm25_index(
+        language=language,
+        document_type=document_type,
+        authority_level=authority_level,
+    )
+
+    if not candidates or bm25 is None:
+        return []
+
+    # 查询根据自身语言进行分词。
     query_language = detect_query_language(query)
     query_tokens = tokenize(query, query_language)
 

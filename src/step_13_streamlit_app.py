@@ -1,7 +1,5 @@
 import streamlit as st
-
-from step_12_answer_generator import generate_answer
-
+from step_12_answer_generator import audit_citations, generate_answer
 
 # 设置浏览器标签页标题与页面宽度。
 st.set_page_config(
@@ -60,6 +58,7 @@ if submitted:
                     language=language_options[selected_language],
                     authority_level=authority_options[selected_authority],
                 )
+                audit = audit_citations(answer, sources)
 
                 st.markdown("### 基于证据的回答")
 
@@ -67,6 +66,14 @@ if submitted:
                     st.warning(answer)
                 else:
                     st.write(answer)
+
+                if audit["is_abstention"]:
+                    st.info("引用校验：安全拒答。当前证据不足，已提示人工复核。")
+                elif audit["is_valid"]:
+                    citations = "、".join(audit["cited_citations"])
+                    st.success(f"引用校验通过：回答引用了本轮有效证据 {citations}。")
+                else:
+                    st.error("引用校验未通过：系统已将回答安全降级为人工复核。")
 
                 st.markdown("### 检索证据来源")
                 st.caption("以下为本次回答可使用的候选证据；回答中的 [S编号] 对应其来源。")

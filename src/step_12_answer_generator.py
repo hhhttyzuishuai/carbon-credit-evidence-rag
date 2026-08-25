@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -10,6 +11,12 @@ from step_09_hybrid_retriever import hybrid_search
 # 生成模型：速度和成本更适合当前 RAG 原型。
 MODEL_NAME = "deepseek-v4-flash"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+# 统一的安全拒答语句。
+ABSTENTION_MESSAGE = "证据不足，需要人工复核。"
+
+# 匹配回答中的 [S1]、[S2] 等来源引用。
+CITATION_PATTERN = re.compile(r"\[S(\d+)\]")
 
 
 SYSTEM_PROMPT = """
@@ -63,6 +70,40 @@ def format_context(results: list[dict]) -> tuple[str, list[dict]]:
     return "\n\n".join(sections), source_records
 
 
+def audit_citations(answer: str, sources: list[dict]) -> dict:
+    """检查回答是否只引用了本轮真实存在的证据编号。"""
+    valid_citations = {
+        source["citation"]
+        for source in sources
+    }
+
+    cited_citations = list(
+        dict.fromkeys(
+            f"[S{number}]"
+            for number in CITATION_PATTERN.findall(answer)
+        )
+    )
+
+    invalid_citations = [
+        citation
+        for citation in cited_citations
+        if citation not in valid_citations
+    ]
+
+    is_abstention = ABSTENTION_MESSAGE in answer
+    is_valid = (
+        not invalid_citations
+        and (is_abstention or bool(cited_citations))
+    )
+
+    return {
+        "is_valid": is_valid,
+        "is_abstention": is_abstention,
+        "cited_citations": cited_citations,
+        "invalid_citations": invalid_citations,
+    }
+
+
 def build_client() -> OpenAI:
     """从本地 .env 读取密钥，并创建 DeepSeek 客户端。"""
     load_dotenv()
@@ -99,9 +140,9 @@ def generate_answer(
     )
 
     if not results:
-        return "证据不足，需要人工复核。", []
+        return ABSTENTION_MESSAGE, []
 
-    context, source_lines = format_context(results)
+    context, source_records = format_context(results)
     client = build_client()
 
     user_prompt = (
@@ -120,8 +161,14 @@ def generate_answer(
         max_tokens=600,
     )
 
-    answer = response.choices[0].message.content
-    return answer or "证据不足，需要人工复核。", source_lines
+    answer = response.choices[0].message.content or ABSTENTION_MESSAGE
+    audit = audit_citations(answer, source_records)
+
+    # 正常回答若无引用，或引用了本轮不存在的编号，则安全降级。
+    if not audit["is_valid"]:
+        return ABSTENTION_MESSAGE, source_records
+
+    return answer, source_records
 
 
 def main() -> None:

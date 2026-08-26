@@ -1,10 +1,18 @@
+import json
+
 import streamlit as st
 
 from step_12_answer_generator import audit_citations, generate_answer
 from step_15_registry_lookup import format_number, lookup_project
+from step_21_v3_feature_adapter import (
+    CLAIM_CONTEXTS,
+    CLAIM_TONES,
+    VERIFIED_AMOUNT_BASES,
+    build_feature_payload,
+)
+from step_23_v3_risk_scorer import score_payload
 
 
-# 设置浏览器标签页标题与页面宽度。
 st.set_page_config(
     page_title="碳信用披露证据助手",
     page_icon="🌿",
@@ -17,21 +25,42 @@ def display_text(value: object) -> str:
     return str(value) if value is not None else "未披露"
 
 
+def parse_optional_amount(raw_value: str, field_name: str) -> float | None:
+    """将可选金额输入转换为浮点数；空值保留给证据门槛处理。"""
+    cleaned_value = raw_value.strip()
+
+    if not cleaned_value:
+        return None
+
+    try:
+        amount = float(cleaned_value)
+    except ValueError as error:
+        raise ValueError(f"{field_name}必须是数字。") from error
+
+    if amount < 0:
+        raise ValueError(f"{field_name}不能小于 0。")
+
+    return amount
+
+
 st.title("碳信用披露证据助手")
 st.caption(
-    "双语 PDF 证据问答与登记记录精确核对原型。"
-    "结果仅供辅助审核，不构成合规、法律或绿洗判断。"
+    "双语 PDF 证据问答、登记记录精确核对与实验性风险审核辅助原型。"
+    "结果仅供人工审核参考，不构成合规、法律或绿洗判断。"
 )
 
-rag_tab, registry_tab = st.tabs(
-    ["PDF 证据问答", "登记记录精确核对"]
+rag_tab, registry_tab, risk_tab = st.tabs(
+    [
+        "PDF 证据问答",
+        "登记记录精确核对",
+        "V3 风险审核辅助（实验）",
+    ]
 )
 
 
 with rag_tab:
     st.markdown("### 检索范围")
 
-    # 将页面中的中文选项映射为后端检索器需要的参数。
     language_options = {
         "自动识别": None,
         "中文资料": "zh",
@@ -147,6 +176,7 @@ with registry_tab:
     project_id = st.text_input(
         "请输入 Project ID",
         placeholder="例如：ACR102",
+        key="registry_project_id",
     )
 
     registry_submitted = st.button(
@@ -227,6 +257,206 @@ with registry_tab:
                 )
 
 
+with risk_tab:
+    st.markdown("### V3 风险审核辅助（实验）")
+    st.caption(
+        "该页面先检查项目 ID、数量口径和人工核验证据；"
+        "模型分数仅为实验性信号，最终默认建议人工复核。"
+    )
+
+    context_labels = {
+        "企业抵消使用声明": "corporate_offset_use",
+        "项目状态声明": "project_status_case",
+        "项目总体数量声明": "project_total_claim",
+    }
+
+    tone_labels = {
+        "绝对化声明": "absolute_claim",
+        "含混混合表述": "ambiguous_mixed",
+        "具体且诚实": "honest_specific",
+        "中性且具体": "neutral_specific",
+        "技术计划表述": "technical_schedule",
+        "缺少依据的宽泛表述": "unsupported_broad",
+        "宣传性模糊表述": "vague_promotional",
+    }
+
+    basis_labels = {
+        "请选择核对口径": None,
+        "注销记录": "retirement_record",
+        "签发记录": "issuance_record",
+        "登记系统逐笔记录": "registry_line_item",
+        "其他可追溯证据": "other_traceable",
+    }
+
+    status_risk_labels = {
+        "未进行人工状态核验": None,
+        "已人工核验：无明确风险": 0,
+        "已人工核验：存在明确风险": 1,
+    }
+
+    with st.form("v3_risk_form"):
+        project_id = st.text_input(
+            "Project ID",
+            placeholder="例如：ACR102",
+        )
+
+        left_column, right_column = st.columns(2)
+
+        with left_column:
+            claimed_amount_text = st.text_input(
+                "声明数量",
+                placeholder="例如：5000",
+            )
+            claimed_unit = st.text_input(
+                "声明数量单位",
+                placeholder="例如：tCO2e",
+            )
+            selected_context = st.selectbox(
+                "声明语境",
+                options=list(context_labels),
+            )
+            selected_tone = st.selectbox(
+                "声明语气",
+                options=list(tone_labels),
+            )
+
+        with right_column:
+            verified_amount_text = st.text_input(
+                "已核对数量",
+                placeholder="仅填写与本条声明口径一致的数量",
+            )
+            verified_unit = st.text_input(
+                "已核对数量单位",
+                placeholder="例如：tCO2e",
+            )
+            selected_basis = st.selectbox(
+                "已核对数量的核对口径",
+                options=list(basis_labels),
+            )
+            verified_evidence_ref = st.text_input(
+                "已核对数量证据来源",
+                placeholder="例如：登记系统逐笔注销记录，编号 XXX",
+            )
+
+        selected_status_risk = st.selectbox(
+            "人工状态核验结果",
+            options=list(status_risk_labels),
+        )
+
+        status_evidence_ref = st.text_input(
+            "状态核验证据来源",
+            placeholder="例如：登记机构状态页截图或规则文件页码",
+        )
+
+        risk_submitted = st.form_submit_button(
+            "执行实验性审核辅助",
+            type="primary",
+        )
+
+    if risk_submitted:
+        try:
+            claimed_amount = parse_optional_amount(
+                claimed_amount_text,
+                "声明数量",
+            )
+            verified_amount = parse_optional_amount(
+                verified_amount_text,
+                "已核对数量",
+            )
+
+            payload = build_feature_payload(
+                project_id=project_id,
+                claimed_amount=claimed_amount,
+                claimed_unit=claimed_unit.strip() or None,
+                verified_amount=verified_amount,
+                verified_unit=verified_unit.strip() or None,
+                verified_amount_basis=basis_labels[selected_basis],
+                verified_evidence_ref=verified_evidence_ref.strip() or None,
+                claim_context=context_labels[selected_context],
+                claim_tone=tone_labels[selected_tone],
+                status_risk_override=status_risk_labels[
+                    selected_status_risk
+                ],
+                status_evidence_ref=status_evidence_ref.strip() or None,
+            )
+
+            result = score_payload(payload)
+
+            st.markdown("#### 审核结果")
+            st.warning("当前审核状态：需要人工复核（review_required）")
+            st.write(result["reason"])
+
+            probability = result["experimental_high_risk_probability"]
+            if probability is not None:
+                st.metric(
+                    "实验性高风险概率",
+                    f"{probability:.2%}",
+                )
+                st.caption(
+                    f"实验信号：{result['experimental_signal']}。"
+                    "该信号不构成企业风险结论。"
+                )
+
+            if result["evidence_issues"]:
+                st.markdown("#### 待补充的证据")
+                for issue in result["evidence_issues"]:
+                    st.write(f"- {issue}")
+            else:
+                st.success(
+                    "证据门槛通过，已返回实验性模型分数；"
+                    "系统仍保留人工复核要求。"
+                )
+
+            aggregate_context = payload["registry_aggregate_context"]
+            if aggregate_context:
+                st.markdown("#### 项目聚合数量（仅作背景）")
+                st.caption(
+                    "以下为项目聚合数据，不自动等同于本条企业声明的可核对数量。"
+                )
+                issued, retired, remaining = st.columns(3)
+                issued.metric(
+                    "已签发",
+                    format_number(
+                        aggregate_context["total_credits_issued"]
+                    ),
+                )
+                retired.metric(
+                    "已注销",
+                    format_number(
+                        aggregate_context["total_credits_retired"]
+                    ),
+                )
+                remaining.metric(
+                    "剩余",
+                    format_number(
+                        aggregate_context["total_credits_remaining"]
+                    ),
+                )
+
+            source = result["registry_source"]
+            if source:
+                st.markdown("#### 登记记录来源")
+                st.caption(
+                    f"工作簿：{source['source_workbook']} ｜ "
+                    f"工作表：{source['source_sheet']} ｜ "
+                    f"Excel 行号：{source['source_excel_row']}"
+                )
+
+            with st.expander("查看模型输入与证据门槛详情"):
+                st.json(
+                    {
+                        "model_features": payload["model_features"],
+                        "quantity_check": payload["quantity_check"],
+                        "status_check": payload["status_check"],
+                        "evidence_gate": payload["evidence_gate"],
+                    }
+                )
+
+        except Exception as error:
+            st.error("V3 审核辅助执行失败，请检查输入字段和本地模型文件。")
+            st.exception(error)
+
+
 st.divider()
 
 st.markdown(
@@ -235,7 +465,8 @@ st.markdown(
 
     - PDF 问答仅依据已导入的静态 PDF 资料回答，并显示文件名与页码；
     - 登记记录核对仅依据本地 Excel 快照，不代表实时登记机构数据；
-    - 资料不足或未找到项目 ID 时，系统提示人工复核；
+    - V3 模型基于合成训练数据与小型严格真实验证集，分数仅作实验性信号；
+    - 项目 ID 未核验、数量口径不一致或关键证据缺失时，V3 默认人工复核；
     - 不对企业是否存在绿洗、违法或合规风险作出自动结论。
     """
 )

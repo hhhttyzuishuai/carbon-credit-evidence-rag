@@ -13,3 +13,7 @@ streamlit==1.62.0
 # V2：读取本地 Excel 登记记录快照
 pandas==2.3.3
 openpyxl==3.1.5
+
+# V3：结构化风险审核辅助模型
+scikit-learn==1.7.2
+xgboost==3.2.0

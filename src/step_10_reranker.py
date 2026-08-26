@@ -1,5 +1,5 @@
 import argparse
-
+from functools import lru_cache
 import torch
 from sentence_transformers import CrossEncoder
 
@@ -8,6 +8,15 @@ from step_09_hybrid_retriever import hybrid_search
 
 # 精排模型：适合中文和英文的 query-document 相关性判断。
 MODEL_NAME = "BAAI/bge-reranker-base"
+@lru_cache(maxsize=1)
+def get_reranker_model() -> CrossEncoder:
+    """在同一个 Python 进程中只加载一次 Cross-Encoder 精排模型。"""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return CrossEncoder(
+        MODEL_NAME,
+        device=device,
+        local_files_only=True,
+    )
 
 
 def rerank(
@@ -22,8 +31,7 @@ def rerank(
         return []
 
     # 优先用 GPU；没有 GPU 时自动改用 CPU。
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = model or CrossEncoder(MODEL_NAME, device=device)
+    model = model or get_reranker_model()
 
     # Cross-Encoder 会同时阅读“问题 + 文本”，为每一对生成相关性分数。
     pairs = [(query, item["chunk"]["text"]) for item in candidates]

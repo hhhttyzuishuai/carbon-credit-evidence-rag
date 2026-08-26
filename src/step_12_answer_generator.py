@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from step_09_hybrid_retriever import hybrid_search
+from step_10_reranker import rerank
 
 
 # 生成模型：速度和成本更适合当前 RAG 原型。
@@ -127,16 +128,23 @@ def generate_answer(
     document_type: str | None = None,
     authority_level: str | None = None,
 ) -> tuple[str, list[dict]]:
-    """执行 Hybrid 检索，并基于证据生成带引用的回答。"""
+    """执行 Hybrid 召回、Cross-Encoder 精排，并基于证据生成回答。"""
 
-    # 当前评估中 Hybrid 表现最好，因此作为 V1 生成层的默认检索器。
-    results = hybrid_search(
+    # 先快速召回 20 条候选；该配置在 50 条评估集上优于候选数 50。
+    candidates = hybrid_search(
         query=query,
-        top_k=top_k,
+        top_k=20,
         candidate_k=20,
         language=language,
         document_type=document_type,
         authority_level=authority_level,
+    )
+
+    # 再通过Cross-Encoder精排，只将钱top_k条证据交给大模型
+    results = rerank(
+        query=query,
+        candidates=candidates,
+        top_k=top_k,
     )
 
     if not results:

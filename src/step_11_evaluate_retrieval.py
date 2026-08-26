@@ -53,32 +53,36 @@ def calculate_metrics(rank: int | None) -> dict:
     }
 
 
-def evaluate_one(item: dict, reranker_model: CrossEncoder) -> dict:
+def evaluate_one(
+    item: dict,
+    reranker_model: CrossEncoder,
+    candidate_k: int,
+) -> dict:
     query = item["query"]
     search_kwargs = get_search_kwargs(item)
     relevant_pages = get_relevant_pages(item)
 
-    # Dense 与 BM25 各自召回前 20 条候选。
+    # Dense 与 BM25 保持固定的前 20 条基线，便于与之前实验公平比较。
     dense_results = dense_search(query=query, top_k=20, **search_kwargs)
     bm25_results = bm25_search(query=query, top_k=20, **search_kwargs)
 
     dense_chunks = [chunk for chunk, _ in dense_results]
     bm25_chunks = [chunk for chunk, _ in bm25_results]
 
-    # Hybrid 使用 RRF 融合两套候选。
+    # Hybrid 融合 candidate_k 条候选，并将全部候选交给精排器。
     hybrid_results = hybrid_search(
         query=query,
-        top_k=20,
-        candidate_k=20,
+        top_k=candidate_k,
+        candidate_k=candidate_k,
         **search_kwargs,
     )
     hybrid_chunks = [item["chunk"] for item in hybrid_results]
 
-    # Reranker 对 Hybrid 候选进行精排。
+    # Reranker 对同一批 Hybrid 候选进行精排。
     reranked_results = rerank(
         query=query,
         candidates=hybrid_results,
-        top_k=20,
+        top_k=candidate_k,
         model=reranker_model,
     )
     reranked_chunks = [item["chunk"] for item in reranked_results]
@@ -115,6 +119,11 @@ def main() -> None:
         "--out-path",
         default="outputs/retrieval_evaluation.json",
     )
+    parser.add_argument(
+        "--candidate-k",
+        type=int,
+        default=20,
+    )
     args = parser.parse_args()
 
     # 读取人工标注的金标准问题。
@@ -130,7 +139,7 @@ def main() -> None:
     reranker_model = CrossEncoder(MODEL_NAME, device=device)
 
     results = [
-        evaluate_one(item, reranker_model)
+        evaluate_one(item, reranker_model, args.candidate_k)
         for item in eval_items
     ]
 
@@ -139,15 +148,31 @@ def main() -> None:
 
     for method in methods:
         summary[method] = {
-            "hit_at_1": sum(item[method]["hit_at_1"] for item in results) / len(results),
-            "hit_at_3": sum(item[method]["hit_at_3"] for item in results) / len(results),
-            "mrr": sum(item[method]["mrr"] for item in results) / len(results),
+            "hit_at_1": (
+                sum(item[method]["hit_at_1"] for item in results)
+                / len(results)
+            ),
+            "hit_at_3": (
+                sum(item[method]["hit_at_3"] for item in results)
+                / len(results)
+            ),
+            "mrr": (
+                sum(item[method]["mrr"] for item in results)
+                / len(results)
+            ),
         }
 
     Path(args.out_path).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_path, "w", encoding="utf-8") as file:
         json.dump(
-            {"summary": summary, "per_query": results},
+            {
+                "config": {
+                    "reranker_model": MODEL_NAME,
+                    "candidate_k": args.candidate_k,
+                },
+                "summary": summary,
+                "per_query": results,
+            },
             file,
             ensure_ascii=False,
             indent=2,
@@ -156,6 +181,7 @@ def main() -> None:
     print("\n=== 检索评估汇总 ===")
     print(f"评估问题数：{len(results)}")
     print(f"精排设备：{device}")
+    print(f"精排候选数：{args.candidate_k}")
 
     for method in methods:
         metrics = summary[method]

@@ -66,7 +66,11 @@ def load_index() -> tuple[list[dict], np.ndarray, dict]:
 @lru_cache(maxsize=1)
 def get_model() -> SentenceTransformer:
     """在同一进程中只加载一次本地 Embedding 模型。"""
-    return SentenceTransformer(MODEL_NAME, device=DEVICE)
+    return SentenceTransformer(
+        MODEL_NAME,
+        device=DEVICE,
+        local_files_only=True,
+    )
 
 def matches_filters(
     chunk: dict,

@@ -10,6 +10,7 @@
 - 接入 Cross-Encoder Reranker，并与其他检索策略进行对比评估；
 - 使用 DeepSeek 仅依据检索证据生成回答；
 - 回答使用 `[S1]` 等编号引用，界面可展开查看对应 Chunk 原文；
+- 支持按 Project ID 精确查询本地登记记录快照，返回登记机构、项目状态、已签发/已注销/剩余数量，以及 Excel 工作表与行号；
 - 当资料不足时提示“证据不足，需要人工复核”；
 - 对“企业是否绿洗”等超出证据边界的问题拒绝作出判断；
 - 提供本地 Streamlit 演示界面。
@@ -37,6 +38,22 @@ DeepSeek 证据约束生成
 > 当前 V1 问答链路默认使用 `Hybrid Retrieval → Cross-Encoder Reranker → DeepSeek`。
 >
 > 在 50 条人工标注双语评估集中，Reranker 的综合检索效果最佳；候选数固定为 20。
+
+## 结构化登记记录核对（V2）
+
+除 PDF 证据检索外，系统还读取本地自愿碳抵消项目登记记录 Excel 快照。
+
+`Project ID`
+  ↓
+规范化（去除首尾空格、统一转为大写）
+  ↓
+精确匹配本地项目索引
+  ↓
+返回登记机构、项目状态、已签发/已注销/剩余数量
+  ↓
+展示来源工作簿、工作表与 Excel 行号
+
+当前使用 `Dim_C_Voluntary-Registry-Offsets-Database--v2026-02.xlsx` 的 `PROJECTS` 工作表，共导出 11,110 条项目记录。结构化查询只做精确字段核对，不让大模型计算、猜测或模糊匹配项目数据。
 
 ## 数据范围
 
@@ -82,6 +99,7 @@ PDF 原始文件、处理中间结果和向量索引仅保存在本地，不提�
 - DeepSeek API：`deepseek-v4-flash`；
 - Streamlit；
 - `pypdf`、NumPy、JSONL。
+- `pandas` + `openpyxl`；
 
 ## 本地运行
 
@@ -121,6 +139,15 @@ python src\step_11_evaluate_retrieval.py
 
 评估详情会写入 `outputs/retrieval_evaluation.json`。
 
+### 5. 构建并查询登记记录索引
+
+首次使用或更换 Excel 数据版本后，先导出结构化项目记录：
+
+```powershell
+python src\step_14_registry_loader.py  # 精确查询项目字段，并显示 Excel 溯源位置
+python src\step_15_registry_lookup.py --project-id ACR102  # 精确查询项目字段，并显示 Excel 溯源位置
+
+
 ## 项目结构
 
 ```text
@@ -138,6 +165,8 @@ src/
   step_11_evaluate_retrieval.py
   step_12_answer_generator.py
   step_13_streamlit_app.py
+  step_14_registry_loader.py
+  step_15_registry_lookup.py
 
 data/
   raw/                 # 本地 PDF，不提交
@@ -153,6 +182,7 @@ data/
 - 不将模型生成结果视为法律、财务或审计意见；
 - 当前评估集包含 50 条人工标注问题，适用于当前原型的对比实验，不能视为通用领域性能结论；
 - 后续可扩展结构化登记记录核对、更多人工标注样本、FastAPI 与 Docker 部署。
+- 登记记录来自本地 `v2026-02` Excel 快照，不能代表登记机构的实时项目状态；
 
 ## 简历描述参考
 

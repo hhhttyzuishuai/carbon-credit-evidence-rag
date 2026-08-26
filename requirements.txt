@@ -9,3 +9,7 @@ jieba==0.42.1
 openai==3.3.1
 python-dotenv==1.2.3
 streamlit==1.62.0
+
+# V2：读取本地 Excel 登记记录快照
+pandas==2.3.3
+openpyxl==3.1.5

@@ -17,3 +17,7 @@ openpyxl==3.1.5
 # V3：结构化风险审核辅助模型
 scikit-learn==1.7.2
 xgboost==3.2.0
+
+# Agent V4：HTTP 服务边界
+fastapi==0.141.1
+uvicorn==0.52.4

@@ -51,3 +51,16 @@ class AgentResponse:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+
+Intent = Literal["auto", "chat", "knowledge", "registry", "risk_review"]
+
+
+@dataclass(frozen=True)
+class AgentRequest:
+    text: str
+    session_id: str | None = None
+    actor_id: str = "local-user"
+    intent: Intent = "auto"
+    payload: dict[str, Any] = field(default_factory=dict)
+    approval_granted: bool = False
+    request_id: str = field(default_factory=lambda: uuid4().hex)

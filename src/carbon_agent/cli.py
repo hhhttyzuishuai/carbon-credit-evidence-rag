@@ -6,14 +6,14 @@ import argparse
 import json
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from .llm import DeepSeekGateway
 from .knowledge import ExistingRAGRetriever
 from .memory import SQLiteConversationStore
 from .v1_simple_qa import SimpleQAAgent
 from .v2_conversation import ConversationalAgent
 from .v3_knowledge_agent import KnowledgeAgent
+from .bootstrap import create_default_orchestrator
+from .contracts import AgentRequest
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,11 +38,33 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_parser.add_argument("--session-id")
     knowledge_parser.add_argument("--top-k", type=int, default=5)
     knowledge_parser.add_argument("--database", default="runtime/agent_memory.sqlite3")
+
+    run_parser = subparsers.add_parser("run", help="V4 multi-agent orchestrator")
+    run_parser.add_argument("question")
+    run_parser.add_argument("--session-id")
+    run_parser.add_argument(
+        "--intent",
+        choices=["auto", "chat", "knowledge", "registry", "risk_review"],
+        default="auto",
+    )
+    run_parser.add_argument("--project-id")
+    run_parser.add_argument("--approval-granted", action="store_true")
+    run_parser.add_argument("--runtime-directory", default="runtime")
+
+    serve_parser = subparsers.add_parser("serve", help="Start the V4 FastAPI service")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
     return parser
 
 
 def main() -> None:
-    load_dotenv()
+    # Registry-only commands must remain usable without optional LLM dependencies.
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        load_dotenv = None
+    if load_dotenv is not None:
+        load_dotenv()
     args = build_parser().parse_args()
     if args.command == "ask":
         response = SimpleQAAgent(DeepSeekGateway()).answer(args.question)
@@ -63,6 +85,24 @@ def main() -> None:
             top_k=args.top_k,
         )
         print(json.dumps(response.to_dict(), ensure_ascii=False, indent=2))
+    elif args.command == "run":
+        payload = {"project_id": args.project_id} if args.project_id else {}
+        response = create_default_orchestrator(args.runtime_directory).handle(
+            AgentRequest(
+                text=args.question,
+                session_id=args.session_id,
+                intent=args.intent,
+                payload=payload,
+                approval_granted=args.approval_granted,
+            )
+        )
+        print(json.dumps(response.to_dict(), ensure_ascii=False, indent=2))
+    elif args.command == "serve":
+        try:
+            import uvicorn
+        except ImportError as error:
+            raise RuntimeError("启动服务需要安装 uvicorn。") from error
+        uvicorn.run("carbon_agent.api:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+{"case_id":"chat_01","question":"你好，介绍一下你能做什么","expected_tool":null,"expected_completed":true}
+{"case_id":"chat_02","question":"帮我把这个问题拆成三个检查步骤","expected_tool":null,"expected_completed":true}
+{"case_id":"knowledge_01","question":"Article 6.2 cooperative approaches 的要求是什么","expected_tool":"knowledge_search","expected_completed":true}
+{"case_id":"knowledge_02","question":"什么是 corresponding adjustment，请给本地文件证据","expected_tool":"knowledge_search","expected_completed":true}
+{"case_id":"knowledge_03","question":"说明 VCMI Claims Code 的证据要求","expected_tool":"knowledge_search","expected_completed":true}
+{"case_id":"knowledge_04","question":"碳信用完整性原则有哪些，附物理页码来源","expected_tool":"knowledge_search","expected_completed":true}
+{"case_id":"registry_01","question":"查询项目 VCS1529 的本地登记记录","expected_tool":"registry_lookup","expected_completed":true}
+{"case_id":"registry_02","question":"Project ID GS1234 在登记快照里吗","expected_tool":"registry_lookup","expected_completed":true}
+{"case_id":"registry_03","question":"核对项目编号 VCS-1001 的 registry 信息","expected_tool":"registry_lookup","expected_completed":true}
+{"case_id":"risk_01","question":"对项目 VCS1529 做实验性风险审核","expected_tool":"experimental_risk_review","expected_completed":true,"approval_granted":true}
+{"case_id":"risk_02","question":"根据已给金额对 GS1234 生成风险信号","expected_tool":"experimental_risk_review","expected_completed":true,"approval_granted":true}
+{"case_id":"risk_03","question":"审查项目 VCS1001 的声明语气风险","expected_tool":"experimental_risk_review","expected_completed":true,"approval_granted":true}

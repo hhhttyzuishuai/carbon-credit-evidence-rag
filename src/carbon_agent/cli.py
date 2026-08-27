@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_parser.add_argument("--top-k", type=int, default=5)
     knowledge_parser.add_argument("--database", default="runtime/agent_memory.sqlite3")
 
-    run_parser = subparsers.add_parser("run", help="V4 multi-agent orchestrator")
+    run_parser = subparsers.add_parser("run", help="V5 bounded agent harness")
     run_parser.add_argument("question")
     run_parser.add_argument("--session-id")
     run_parser.add_argument(
@@ -49,11 +49,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--project-id")
     run_parser.add_argument("--approval-granted", action="store_true")
+    run_parser.add_argument("--request-id")
     run_parser.add_argument("--runtime-directory", default="runtime")
 
-    serve_parser = subparsers.add_parser("serve", help="Start the V4 FastAPI service")
+    serve_parser = subparsers.add_parser("serve", help="Start the V5 FastAPI service")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)
+    subparsers.add_parser("mcp-server", help="Start the stdio MCP tool server")
     return parser
 
 
@@ -94,6 +96,7 @@ def main() -> None:
                 intent=args.intent,
                 payload=payload,
                 approval_granted=args.approval_granted,
+                **({"request_id": args.request_id} if args.request_id else {}),
             )
         )
         print(json.dumps(response.to_dict(), ensure_ascii=False, indent=2))
@@ -103,6 +106,10 @@ def main() -> None:
         except ImportError as error:
             raise RuntimeError("启动服务需要安装 uvicorn。") from error
         uvicorn.run("carbon_agent.api:app", host=args.host, port=args.port)
+    elif args.command == "mcp-server":
+        from .mcp_server import run_stdio
+
+        run_stdio()
 
 
 if __name__ == "__main__":

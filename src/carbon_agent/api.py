@@ -1,13 +1,17 @@
-"""FastAPI boundary for the V4 multi-agent service."""
+"""FastAPI boundary for the V5 agent harness."""
 
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
+from uuid import uuid4
 
 from .bootstrap import create_default_orchestrator
 from .contracts import AgentRequest
-from .orchestrator import MultiAgentOrchestrator
 
 
-def create_app(orchestrator: MultiAgentOrchestrator | None = None):
+class AgentRuntime(Protocol):
+    def handle(self, request: AgentRequest): ...
+
+
+def create_app(orchestrator: AgentRuntime | None = None):
     try:
         from fastapi import FastAPI
         from pydantic import BaseModel, Field
@@ -18,8 +22,8 @@ def create_app(orchestrator: MultiAgentOrchestrator | None = None):
 
     active_orchestrator = orchestrator or create_default_orchestrator()
     app = FastAPI(
-        title="Carbon Credit Multi-Agent API",
-        version="4.0.0",
+        title="Carbon Credit Agent Harness API",
+        version="5.0.0",
         description="Evidence-grounded assistant; all risk outputs require human review.",
     )
 
@@ -32,10 +36,11 @@ def create_app(orchestrator: MultiAgentOrchestrator | None = None):
         ] = "auto"
         payload: dict[str, Any] = Field(default_factory=dict)
         approval_granted: bool = False
+        request_id: str = Field(default_factory=lambda: uuid4().hex, min_length=8)
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "version": "4.0.0"}
+        return {"status": "ok", "version": "5.0.0"}
 
     @app.post("/v1/agent/chat")
     def chat(body: ChatRequest) -> dict[str, Any]:
@@ -47,9 +52,17 @@ def create_app(orchestrator: MultiAgentOrchestrator | None = None):
                 intent=body.intent,
                 payload=body.payload,
                 approval_granted=body.approval_granted,
+                request_id=body.request_id,
             )
         )
         return response.to_dict()
+
+    @app.get("/v1/executions/{request_id}/events")
+    def execution_events(request_id: str) -> dict[str, Any]:
+        getter = getattr(active_orchestrator, "get_events", None)
+        if getter is None:
+            return {"request_id": request_id, "events": []}
+        return {"request_id": request_id, "events": getter(request_id)}
 
     return app
 

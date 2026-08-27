@@ -28,7 +28,7 @@ class AgentApiTests(unittest.TestCase):
     def test_health_endpoint(self) -> None:
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok", "version": "4.0.0"})
+        self.assertEqual(response.json(), {"status": "ok", "version": "5.0.0"})
 
     def test_chat_endpoint_preserves_structured_request(self) -> None:
         response = self.client.post(

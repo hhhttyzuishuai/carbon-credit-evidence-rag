@@ -1,5 +1,17 @@
 # Changelog
 
+## Agent V5.0.0 — resumable agent harness
+
+- Replaced the default deterministic router with a bounded model-driven
+  observe/act loop while retaining the V1–V4 implementations and tags;
+- added typed tool schemas, validation, retry policies and explicit approval;
+- added request idempotency, SQLite checkpoints, event replay and crash recovery;
+- added context compaction and content-addressed externalization for large tool
+  observations;
+- exposed read-only knowledge and registry tools through an MCP stdio server;
+- unified CLI, FastAPI and Streamlit on the same runtime;
+- added citation enforcement, 34 offline tests and a 12-case V5 harness regression.
+
 ## Agent V4.1.0 — portfolio release
 
 - Added committed routing regression cases and a reproducible evaluator;

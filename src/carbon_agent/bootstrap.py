@@ -1,36 +1,31 @@
-"""Dependency wiring for the local production-like runtime."""
+"""Dependency wiring for the local V5 production-like runtime."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from .audit import JsonlAuditLog
-from .business_tools import ExperimentalRiskTool, LocalRegistryTool
+from .context import ArtifactStore, ContextWindowManager
+from .execution_store import SQLiteExecutionStore
+from .harness import AgentHarness
 from .knowledge import ExistingRAGRetriever
-from .llm import DeepSeekGateway
 from .memory import SQLiteConversationStore
-from .orchestrator import MultiAgentOrchestrator
-from .routing import RouterAgent
-from .specialists import OutputVerifierAgent, RegistryAgent, RiskReviewAgent
-from .v2_conversation import ConversationalAgent
-from .v3_knowledge_agent import KnowledgeAgent
+from .planner import DeepSeekToolPlanner
+from .tooling import build_default_tool_registry
 
 
 def create_default_orchestrator(
     runtime_directory: str | Path = "runtime",
-) -> MultiAgentOrchestrator:
+) -> AgentHarness:
     runtime_path = Path(runtime_directory)
-    store = SQLiteConversationStore(runtime_path / "agent_memory.sqlite3")
-    gateway = DeepSeekGateway()
-    return MultiAgentOrchestrator(
-        router=RouterAgent(),
-        conversation_agent=ConversationalAgent(gateway, store),
-        knowledge_agent=KnowledgeAgent(
-            gateway, ExistingRAGRetriever(), store
+    return AgentHarness(
+        planner=DeepSeekToolPlanner(),
+        tools=build_default_tool_registry(ExistingRAGRetriever()),
+        execution_store=SQLiteExecutionStore(runtime_path / "executions.sqlite3"),
+        conversation_store=SQLiteConversationStore(
+            runtime_path / "agent_memory.sqlite3"
         ),
-        registry_agent=RegistryAgent(LocalRegistryTool(), store),
-        risk_review_agent=RiskReviewAgent(ExperimentalRiskTool(), store),
-        verifier=OutputVerifierAgent(),
+        context_manager=ContextWindowManager(),
+        artifact_store=ArtifactStore(runtime_path / "artifacts"),
         audit_log=JsonlAuditLog(runtime_path / "audit.jsonl"),
     )
-

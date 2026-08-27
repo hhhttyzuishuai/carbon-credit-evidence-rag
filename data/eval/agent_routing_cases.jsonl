@@ -1,0 +1,24 @@
+{"case_id":"chat_01","text":"你好，请介绍一下你自己","expected_route":"chat"}
+{"case_id":"chat_02","text":"帮我把这句话说得更简洁","expected_route":"chat"}
+{"case_id":"chat_03","text":"我刚才问了什么？","expected_route":"chat"}
+{"case_id":"chat_04","text":"解释一下什么是机器学习","expected_route":"chat"}
+{"case_id":"knowledge_01","text":"管理办法对项目登记有何规定？","expected_route":"knowledge"}
+{"case_id":"knowledge_02","text":"请给出 CCER 项目申请的证据依据","expected_route":"knowledge"}
+{"case_id":"knowledge_03","text":"报告中如何描述碳信用注销？","expected_route":"knowledge"}
+{"case_id":"knowledge_04","text":"According to the PDF, what evidence supports retirement?","expected_route":"knowledge"}
+{"case_id":"knowledge_05","text":"这项结论有什么 evidence？","expected_route":"knowledge"}
+{"case_id":"registry_01","text":"查询 ACR102 的登记状态","expected_route":"registry"}
+{"case_id":"registry_02","text":"VCS1234 的签发量是多少？","expected_route":"registry"}
+{"case_id":"registry_03","text":"请查 CAR-88 的注销量","expected_route":"registry"}
+{"case_id":"registry_04","text":"这个项目剩余量是多少？","payload":{"project_id":"ACR102"},"expected_route":"registry"}
+{"case_id":"registry_05","text":"Look up registry status for GS 1200","expected_route":"registry"}
+{"case_id":"risk_01","text":"对这条声明做风险评分","expected_route":"risk_review"}
+{"case_id":"risk_02","text":"进行风险审核","expected_route":"risk_review"}
+{"case_id":"risk_03","text":"比较声明数量与核验数量","expected_route":"risk_review"}
+{"case_id":"risk_04","text":"Run a risk review for this claim","expected_route":"risk_review"}
+{"case_id":"risk_05","text":"执行任务","payload":{"action":"risk_review"},"expected_route":"risk_review"}
+{"case_id":"explicit_01","text":"普通文本","intent":"knowledge","expected_route":"knowledge"}
+{"case_id":"explicit_02","text":"普通文本","intent":"registry","expected_route":"registry"}
+{"case_id":"explicit_03","text":"普通文本","intent":"risk_review","expected_route":"risk_review"}
+{"case_id":"explicit_04","text":"管理办法有什么规定？","intent":"chat","expected_route":"chat"}
+{"case_id":"precedence_01","text":"查询 ACR102 的登记状态并做风险评分","expected_route":"risk_review"}

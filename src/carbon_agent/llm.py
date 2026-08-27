@@ -57,7 +57,7 @@ class FakeGateway:
     """Deterministic test double used by offline tests and demos."""
 
     def __init__(self, responses: list[str] | None = None) -> None:
-        self.responses = list(responses or ["测试回答"])
+        self.responses = list(["测试回答"] if responses is None else responses)
         self.calls: list[list[Message]] = []
 
     def complete(self, messages: Sequence[Message]) -> str:
@@ -65,4 +65,3 @@ class FakeGateway:
         if not self.responses:
             raise RuntimeError("FakeGateway 没有剩余响应。")
         return self.responses.pop(0)
-

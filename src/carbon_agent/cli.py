@@ -9,9 +9,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from .llm import DeepSeekGateway
+from .knowledge import ExistingRAGRetriever
 from .memory import SQLiteConversationStore
 from .v1_simple_qa import SimpleQAAgent
 from .v2_conversation import ConversationalAgent
+from .v3_knowledge_agent import KnowledgeAgent
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +30,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="runtime/agent_memory.sqlite3",
         help="SQLite memory path",
     )
+
+    knowledge_parser = subparsers.add_parser(
+        "knowledge", help="V3 grounded knowledge-base question answering"
+    )
+    knowledge_parser.add_argument("question")
+    knowledge_parser.add_argument("--session-id")
+    knowledge_parser.add_argument("--top-k", type=int, default=5)
+    knowledge_parser.add_argument("--database", default="runtime/agent_memory.sqlite3")
     return parser
 
 
@@ -41,6 +51,16 @@ def main() -> None:
         store = SQLiteConversationStore(Path(args.database))
         response = ConversationalAgent(DeepSeekGateway(), store).answer(
             args.question, session_id=args.session_id
+        )
+        print(json.dumps(response.to_dict(), ensure_ascii=False, indent=2))
+    elif args.command == "knowledge":
+        store = SQLiteConversationStore(Path(args.database))
+        response = KnowledgeAgent(
+            DeepSeekGateway(), ExistingRAGRetriever(), store
+        ).answer(
+            args.question,
+            session_id=args.session_id,
+            top_k=args.top_k,
         )
         print(json.dumps(response.to_dict(), ensure_ascii=False, indent=2))
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from .llm import DeepSeekGateway
@@ -39,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_parser.add_argument("--top-k", type=int, default=5)
     knowledge_parser.add_argument("--database", default="runtime/agent_memory.sqlite3")
 
-    run_parser = subparsers.add_parser("run", help="V5 bounded agent harness")
+    run_parser = subparsers.add_parser("run", help="Run V5 custom or V6 LangGraph")
     run_parser.add_argument("question")
     run_parser.add_argument("--session-id")
     run_parser.add_argument(
@@ -51,10 +52,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--approval-granted", action="store_true")
     run_parser.add_argument("--request-id")
     run_parser.add_argument("--runtime-directory", default="runtime")
+    run_parser.add_argument(
+        "--runtime", choices=["langgraph", "custom"], default="langgraph"
+    )
 
-    serve_parser = subparsers.add_parser("serve", help="Start the V5 FastAPI service")
+    serve_parser = subparsers.add_parser("serve", help="Start the V6 FastAPI service")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.add_argument(
+        "--runtime", choices=["langgraph", "custom"], default="langgraph"
+    )
     subparsers.add_parser("mcp-server", help="Start the stdio MCP tool server")
     return parser
 
@@ -89,7 +96,9 @@ def main() -> None:
         print(json.dumps(response.to_dict(), ensure_ascii=False, indent=2))
     elif args.command == "run":
         payload = {"project_id": args.project_id} if args.project_id else {}
-        response = create_default_orchestrator(args.runtime_directory).handle(
+        response = create_default_orchestrator(
+            args.runtime_directory, runtime_kind=args.runtime
+        ).handle(
             AgentRequest(
                 text=args.question,
                 session_id=args.session_id,
@@ -105,6 +114,7 @@ def main() -> None:
             import uvicorn
         except ImportError as error:
             raise RuntimeError("启动服务需要安装 uvicorn。") from error
+        os.environ["AGENT_RUNTIME"] = args.runtime
         uvicorn.run("carbon_agent.api:app", host=args.host, port=args.port)
     elif args.command == "mcp-server":
         from .mcp_server import run_stdio

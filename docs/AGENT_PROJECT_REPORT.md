@@ -1,171 +1,153 @@
-# 碳信用证据审核 Agent Harness 项目报告
+# 碳信用披露审核 Agent 系统项目报告
 
-## 1. 最终成果
+## 项目概述
 
-原项目是一条完成标注评测的双语 RAG：处理 9 份 PDF，保留物理页码，组合
-E5 Dense、BM25、RRF 和 Cross-Encoder，并让 DeepSeek 生成带引用回答。升级
-没有推翻检索链，而是在外层建立可测试、可恢复、受权限约束的 Agent Harness。
+系统面向碳信用披露审核，接收自然语言问题后选择知识检索、登记查询或实验性风险
+审核工具，并返回可定位到文件、物理页码、工作表和数据行的结果。模型负责选择
+下一步行动，工程层负责参数校验、最大步数、审批、幂等、检查点和引用验证。
 
-V5 默认运行时会读取用户问题和当前观察，由模型决定调用 Knowledge、Registry、
-Experimental Risk Review 中的一个工具，或直接结束回答。每次工具执行结果重新
-进入上下文，形成最多 6 步的 `observe -> decide -> tool -> observe` 循环。
+当前同时保留两套运行时：V5 是自研 Agent Harness，V6 使用 LangGraph 和
+LangChain 重构编排层。两版共用数据、工具和回归集，因此可以直接观察框架化前后
+的代码结构、状态管理和执行开销。
 
-## 2. 版本留档
+## 版本记录
 
-| 阶段 | 主要成果 | Commit | Tag |
-|---|---|---|---|
-| V1 | LLM Gateway、简单问答、Fake LLM 测试 | `22c1d1c` | `agent-v1.0.0` |
-| V2 | SQLite 会话、原子 Turn、历史窗口 | `d772bf9` | `agent-v2.0.0` |
-| V3 | RAG Adapter、知识 Agent、引用审计 | `c1df97f` | `agent-v3.0.0` |
-| V4 | 确定性多 Agent、业务工具、授权、API | `d8f1e92` | `agent-v4.0.0` |
-| V5 | Agent Loop、Tool Registry、恢复/重放、MCP | 本次发布 Commit | `agent-v5.0.0` |
+| 版本 | 内容 | Tag |
+|---|---|---|
+| V1 | 简单问答与 LLM Gateway | `agent-v1.0.0` |
+| V2 | SQLite 多轮记忆 | `agent-v2.0.0` |
+| V3 | 知识检索、页码来源和引用审计 | `agent-v3.0.0` |
+| V4 | 确定性多 Agent 路由和业务工具 | `agent-v4.0.0` |
+| V5 | 自研工具循环、幂等、检查点、MCP | `agent-v5.0.0` |
+| V6 | LangGraph、LangChain、双运行时和可视化 | `agent-v6.0.0` |
 
-V5 推送后可用 `git show agent-v5.0.0` 查看最终快照。各阶段设计保存在
-`docs/releases/`，面试时可以真实展示从问答、记忆、RAG、业务工具到 Harness
-可靠性的演进，而不是把最终代码一次性包装成“从零设计”。
+详细发布说明位于 `docs/releases/`。
 
-## 3. 一次 V5 请求如何流转
+## V6 执行链路
 
-1. API/CLI/UI 将文本、Session、Actor、Payload、审批状态和 Request ID 转为
+1. API、CLI 或 Streamlit 将问题、Session、Actor、审批状态和 Request ID 组成
    `AgentRequest`；
-2. Execution Store 对规范化请求计算指纹：同 ID 同内容直接重放，同 ID 不同
-   内容拒绝执行；
-3. Harness 恢复已有检查点，或读取 SQLite 对话历史创建初始上下文；
-4. 上下文超限时压缩旧消息，保留系统边界和最近 Turn；
-5. Planner 看到统一工具 Schema，选择一个工具或最终回答；
-6. Tool Registry 校验工具名、参数类型、必填字段、审批权限和重试预算；
-7. 工具结果加入下一轮观察；超大结果保存为带 SHA-256 的 Artifact，只把预览
-   和指针交给模型；
-8. 每一步写入 SQLite Checkpoint 和 Event；进程中断后可用原 Request ID 继续；
-9. 最终答案经过 Source ID 引用校验，再原子写入完整对话 Turn；
-10. 返回 Answer、Sources、Tool Calls、恢复/压缩/引用元数据，并写脱敏审计。
+2. Execution Store 计算请求指纹，拦截同 ID 不同内容的请求，已完成请求直接
+   返回原结果；
+3. LangGraph Checkpointer 创建或恢复对应 `thread_id` 的节点状态；
+4. Planner 节点通过 `ChatDeepSeek` 读取消息和 LangChain Tool Schema，选择工具
+   或结束；
+5. Tool Executor 使用 `StructuredTool` 执行参数验证、审批和重试，再把结果写回
+   Graph State；
+6. 条件边把工具观察重新送回 Planner，最多循环6步；
+7. Output Verifier 检查本轮 Source ID 和业务边界；
+8. 完整 Turn、最终响应和执行事件分别写入 SQLite 与脱敏 Audit Log。
 
-系统不保存或展示隐藏思维链。事件只记录步骤、动作、工具名、状态和错误类型。
+知识检索和登记查询成功后，回答必须引用本轮生成的 `[S编号]` 或 `[T编号]`。
+历史对话只用于理解问题，不能作为事实来源。
 
-## 4. 关键知识点
+## 两套运行时
 
-### Agent Loop 不是关键词路由
+### V5 Custom Harness
 
-V4 的 Router 能稳定处理四条固定路线，但执行路径在代码里预先决定。V5 把“下一
-步做什么”交给模型：它可以依据工具观察修正参数、换工具或结束。工程层仍控制
-最大步数、权限和输出验证，模型只拥有受约束的决策权。
+V5 直接用 Python 实现工具循环。`AgentHarness` 控制状态、重试和停止条件，
+`ToolRegistry` 管理 JSON Schema 与审批策略，`SQLiteExecutionStore` 保存检查点
+和幂等响应。优点是机制直观、依赖较少，也便于解释每一步为什么存在。
 
-### Tool Schema 与最小权限
+### V6 LangGraph
 
-工具不只是 Python 函数。`ToolSpec` 同时声明名称、用途、JSON Schema、审批要求
-和重试次数。Risk Review 必须由调用方显式授权；MCP Server 只暴露只读 Knowledge
-和 Registry，不会因为“接入协议”而扩大高风险权限。
+V6 把 Planner、Tool Executor 和 Output Verifier 变成 StateGraph 节点，并用
+条件边表达工具循环。模型由 `langchain-deepseek` 接入，工具转换为 LangChain
+`StructuredTool`，节点状态由 LangGraph SQLite Checkpointer 保存。Graph 可以
+被程序读取并展示在 API 和 Streamlit 页面中。
 
-### 幂等、检查点和重放
+V6 没有删除 V5，也没有重新实现底层知识库。框架层发生变化，业务工具和安全规则
+保持一致，这让对比更接近真实的软件迁移。
 
-Request ID 对应请求指纹和最终响应。已完成请求重复提交不会再次调用模型/工具；
-相同 ID 携带不同参数会冲突。工具步骤后保存消息、来源、工具轨迹和 Artifact，
-失败请求能从最近检查点恢复。事件接口可还原执行过程。
+## 数据和工具
 
-这是单机 SQLite 的 At-least-once 风格原型，不宣称具备分布式 Exactly-once、
-Lease 或事务 Outbox。
+### 知识检索
 
-### 上下文治理
+- 9份中英文 PDF、797页、2,572个文本块；
+- Multilingual-E5 Dense Retrieval；
+- 中文分词 BM25；
+- RRF 排名融合；
+- BGE Cross-Encoder 重排序；
+- 文件名、语言、文档类型和物理页码来源。
 
-多轮记忆并不等于把所有历史无限塞入 Prompt。系统只把历史作为意图上下文，旧
-消息超限后生成确定性摘要，最近消息保留；大工具输出存为内容寻址 Artifact，
-避免单次观察占满上下文。历史回答不能冒充本轮业务证据。
+50条人工标注问题上的结果：
 
-### Grounding 与输出验证
+| 方法 | Hit@1 | Hit@3 | MRR |
+|---|---:|---:|---:|
+| Dense | 0.540 | 0.720 | 0.656 |
+| BM25 | 0.680 | 0.880 | 0.785 |
+| RRF Hybrid | 0.580 | 0.820 | 0.722 |
+| Cross-Encoder | 0.780 | 0.980 | 0.863 |
 
-Knowledge 返回 `[S编号]`，Registry 返回 `[T编号]`。最终回答使用不存在的编号，
-或调用证据工具后完全没有有效引用，Harness 会拒绝把回答作为可靠结论输出。
-物理页码、文件名、Workbook、Sheet 和 Excel 行号仍由底层链路保留。
+### 登记查询
 
-### Human-in-the-loop
+本地静态快照包含11,110条记录。工具按 Project ID 精确查询，并返回工作簿、Sheet
+和 Excel 行号。静态快照不能代表登记机构的实时状态。
 
-风险工具即使是只读，也可能被用户误解成正式结论，因此执行前要求显式审批。
-它的输出始终带“实验性审核信号”边界，不能表述为企业绿洗、违法或合规结论。
+### 实验性风险审核
 
-### MCP
+风险工具要求 `approval_granted=true`，否则在执行前停止。结果只用于辅助人工核查，
+不会输出企业绿洗、违法或合规结论。
 
-项目实现 stdio MCP 的初始化、工具发现、工具调用和 Ping，使外部 Agent Client
-能复用本地知识与登记工具。实现覆盖当前演示所需的协议子集，不宣称覆盖所有
-可选能力。
+## 验收结果
 
-## 5. 验收证据
+- 42个离线测试通过；
+- V4路由回归24/24；
+- V5和V6在同一12条任务上均为工具选择12/12、任务完成12/12；
+- 两版平均执行步数均为1.833；
+- 两版故障注入恢复均为4/4；
+- V6测试覆盖 Graph节点、条件边、StructuredTool、审批、幂等、引用校验和失败
+  节点恢复；
+- Streamlit首页、状态图和双运行时对比页已完成本地浏览器视觉检查。
 
-- 34 个离线测试通过；
-- V4 的 24/24 固定路由案例继续通过；
-- V5 的 12/12 固定案例工具选择正确、12/12 任务完成，平均 1.833 步；
-- 4/4 故障注入请求在第二次提交时从检查点恢复；
-- 测试覆盖幂等重放无二次 Planner 调用、ID 指纹冲突、工具瞬时失败重试、最大
-  步数停止、引用校验、上下文压缩、Artifact Hash、MCP 只读边界和 API；
-- 原 RAG 50 条人工标注问题中，Cross-Encoder Hit@1 0.780、Hit@3 0.980、
-  MRR 0.863；
-- 11,110 条本地登记记录支持 Project ID 精确查询及行级来源。
+一次本地确定性回归中，V5中位编排耗时为88.37 ms，V6为123.68 ms。该测试不含
+LLM、网络和 GPU 检索，只能说明当前 Fixture 下 LangGraph 增加了一定框架开销，
+不能作为线上性能结论。
 
-V5 回归使用确定性 Fake Planner/Tool，只用于防回归，不能证明真实模型面对任意
-表达都能正确选工具。当前临时 Python 3.12 环境缺少 PyTorch，本次没有重跑 GPU
-检索或真实 DeepSeek 工具调用；演示前需要在完整 Python/CUDA 环境补 live smoke。
+## 可视化
 
-## 6. 为什么只能称“伪企业级”
+Streamlit 控制台提供四个页面：
 
-已具备的工程形态：契约化输入输出、受限 Agent Loop、统一 Tool Schema、最小
-权限、持久化记忆、幂等、检查点、事件重放、上下文治理、来源验证、Human-in-the-
-loop、脱敏审计、API/UI/MCP、自动测试、评测集、CI 和版本发布。
+1. Agent 控制台：切换 V5/V6，查看回答、来源、工具调用和事件；
+2. 执行图：显示 Planner、Tool Executor、Verifier 及条件边；
+3. V5/V6 对比：展示同一回归集的完成率、恢复率、步骤和本地开销；
+4. 评测与证据：展示 Dense、BM25、RRF 和 Cross-Encoder 指标。
 
-未具备的生产条件：企业 SSO/RBAC、租户隔离、Vault/KMS、PostgreSQL/Redis、
-分布式任务、Lease/Outbox、限流熔断、容器编排、OpenTelemetry、SLA、告警、
-真实流量压测、实时登记 API、大规模独立风险验证及法务/合规签核。
+GitHub README 同时嵌入 SVG 架构图，即使不运行 Python 也能了解系统结构。
 
-因此简历应使用“原型”“审核辅助”“实验性信号”，不要写“生产级企业系统”或
-“自动识别绿洗”。
+## 简历材料
 
-## 7. 简历项目说明
+推荐标题：**碳信用披露审核 Agent 系统**
 
-### 项目名称
+可直接使用的完整版和精简版位于
+[`V5_V6_RESUME_COMPARISON.md`](V5_V6_RESUME_COMPARISON.md)。
 
-碳信用证据审核 Agent Harness｜个人项目｜2026.08
+项目地址：<https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag>
 
-### 技术栈
+## 面试重点
 
-Python、FastAPI、SQLite、DeepSeek API、MCP、PyTorch、Sentence-Transformers、
-Multilingual-E5、BM25、RRF、BGE Cross-Encoder、XGBoost、GitHub Actions
+### 为什么保留两个运行时
 
-### 推荐三条描述
+V5用来说明对Agent循环、状态和恢复机制的理解，V6用来说明如何把自研实现迁移到
+主流框架。两版共用回归集，避免只展示框架代码而无法判断行为是否一致。
 
-- 基于既有双语 RAG 设计受限 Agent Harness，实现模型驱动的
-  `observe-decide-tool-observe` 循环和 Knowledge、Registry、Risk Review 统一
-  Tool Registry，通过 JSON Schema、最大步数、重试预算和人工审批约束执行。
-- 构建 Request ID 幂等、SQLite 检查点与事件重放机制，支持失败请求恢复；增加
-  上下文压缩、SHA-256 大结果外置、Source ID 引用校验，并统一 CLI、FastAPI、
-  Streamlit 与只读 MCP 工具服务。
-- 复用 9 份中英文 PDF 的 E5+BM25+RRF+Cross-Encoder 检索链，在 50 条人工
-  标注问题上取得 Hit@1 0.780、Hit@3 0.980、MRR 0.863；完成 34 项离线测试、
-  24 条路由回归、12 条 Harness 回归及 4 次故障恢复验证。
+### 为什么不是多 Agent 互相讨论
 
-### 一句话版本
+当前任务主要是工具选择和受控执行，单个 Planner 加窄权限工具更容易测试和审计。
+V4保留了职责拆分的多 Agent 实现，但V6没有为了简历关键词增加无必要的对话成本。
+如果出现需要独立上下文、不同权限或并行处理的任务，再把专业节点拆为子图更合理。
 
-设计并实现面向碳信用证据审核的可恢复 Agent Harness，将双语 RAG、持久化记忆
-和业务工具统一到带幂等、检查点、MCP、引用验证与人工审批的 FastAPI 服务中。
+### 为什么不能称为生产级
 
-## 8. 面试讲法
+项目没有企业 SSO/RBAC、租户隔离、KMS、分布式队列、PostgreSQL Checkpointer、
+OpenTelemetry、SLA、线上告警和真实流量压测。SQLite适合本地作品集和小型演示，
+不是生产部署证明。
 
-按“问题—演进—可靠性—验证—边界”讲：
+## 演示前检查
 
-1. 原 RAG 只解决证据检索，不能管理持续会话或自主选择业务工具；
-2. V1–V4 先建立稳定契约、记忆、Grounding 和确定性多 Agent，再在 V5 引入
-   模型驱动循环；
-3. Agent 自主性由 Tool Schema、最大步数、审批、幂等、检查点和 Verifier 包围；
-4. 展示 Git Tags、34 个测试、两组回归集、故障恢复事件和 RAG 标注指标；
-5. 主动说明静态登记表、Fake Planner 回归、未重跑 GPU/live LLM 和未投产边界。
-
-如果面试官问“为什么不用 LangGraph”，可以回答：本版用小型自定义 Harness
-显式实现状态、循环、检查点、权限和事件，便于理解底层机制与单元测试；若进入
-并行分支、人工中断长任务和分布式执行，再评估 LangGraph 或工作流引擎，而不是
-用框架名代替系统设计。
-
-## 9. 演示前检查
-
-1. 在 PyCharm 重建 Python 3.10 `.venv`，按本机 CUDA 安装 PyTorch；
-2. 安装依赖并配置 `.env`，录屏时不要展示密钥；
-3. 运行 34 个测试、V4 路由回归和 V5 Harness 回归；
-4. 重跑 50 条检索评测并执行真实 DeepSeek Tool Calling smoke test；
-5. 演示知识检索、登记查询、风险未授权、相同 Request ID 重放和故障恢复；
-6. 展示 API 事件和脱敏 Audit，避免提交包含真实输入的 Runtime 文件。
+1. 在 PyCharm 创建 Python3.10虚拟环境并安装依赖；
+2. 按本机 CUDA 安装 PyTorch，重跑50条检索评测；
+3. 配置 DeepSeek Key，分别执行 V5和V6真实 Tool Calling；
+4. 运行42个测试和全部三组 Agent 回归脚本；
+5. 启动 Streamlit，演示运行时切换、执行图、事件和引用来源；
+6. 不展示或提交 API Key、真实用户输入和 Runtime 数据库。

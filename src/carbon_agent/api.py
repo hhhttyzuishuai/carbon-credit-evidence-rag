@@ -1,4 +1,4 @@
-"""FastAPI boundary for the V5 agent harness."""
+"""FastAPI boundary for the V6 dual-runtime agent service."""
 
 from typing import Any, Literal, Protocol
 from uuid import uuid4
@@ -22,8 +22,8 @@ def create_app(orchestrator: AgentRuntime | None = None):
 
     active_orchestrator = orchestrator or create_default_orchestrator()
     app = FastAPI(
-        title="Carbon Credit Agent Harness API",
-        version="5.0.0",
+        title="Carbon Credit Agent API",
+        version="6.0.0",
         description="Evidence-grounded assistant; all risk outputs require human review.",
     )
 
@@ -40,7 +40,7 @@ def create_app(orchestrator: AgentRuntime | None = None):
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "version": "5.0.0"}
+        return {"status": "ok", "version": "6.0.0"}
 
     @app.post("/v1/agent/chat")
     def chat(body: ChatRequest) -> dict[str, Any]:
@@ -63,6 +63,17 @@ def create_app(orchestrator: AgentRuntime | None = None):
         if getter is None:
             return {"request_id": request_id, "events": []}
         return {"request_id": request_id, "events": getter(request_id)}
+
+    @app.get("/v1/architecture")
+    def architecture() -> dict[str, Any]:
+        getter = getattr(active_orchestrator, "get_architecture", None)
+        if getter is None:
+            return {
+                "runtime": "custom",
+                "nodes": ["planner", "tool_executor", "output_verifier"],
+                "edges": [],
+            }
+        return getter()
 
     return app
 

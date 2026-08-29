@@ -1,5 +1,18 @@
 # Changelog
 
+## Agent V6.0.0 — LangGraph dual runtime and visual console
+
+- Added a LangGraph `StateGraph` runtime with planner, tool-executor and
+  output-verifier nodes while retaining the V5 custom Harness;
+- added LangChain `StructuredTool` adapters and the official `ChatDeepSeek`
+  integration;
+- added LangGraph SQLite checkpointing, graph introspection and architecture API;
+- added a reproducible V5/V6 comparison on the same 12-case fixture set;
+- rebuilt Streamlit as a visual portfolio console with runtime switching,
+  execution graph, evidence metrics and event timelines;
+- added GitHub-rendered architecture artwork and resume-ready comparison notes;
+- expanded the offline suite to 42 tests and added V6 CI evaluation.
+
 ## Agent V5.0.0 — resumable agent harness
 
 - Replaced the default deterministic router with a bounded model-driven

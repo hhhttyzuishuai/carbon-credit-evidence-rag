@@ -24,3 +24,5 @@ jobs:
         run: python scripts/evaluate_agent_routes.py
       - name: Run V5 harness evaluation
         run: python scripts/evaluate_v5_harness.py
+      - name: Compare V5 and V6 runtimes
+        run: python scripts/evaluate_v6_runtime_comparison.py

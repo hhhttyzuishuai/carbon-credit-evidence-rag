@@ -1,0 +1,25 @@
+{
+  "evaluated_at": "2026-08-29",
+  "dataset": "data/eval/v5_tool_cases.jsonl",
+  "comparison": [
+    {
+      "runtime": "V5 Custom Harness",
+      "cases": 12,
+      "tool_selection_accuracy": 1.0,
+      "task_completion_rate": 1.0,
+      "average_steps": 1.833,
+      "median_local_latency_ms": 88.37,
+      "checkpoint_recovery_rate": 1.0
+    },
+    {
+      "runtime": "V6 LangGraph",
+      "cases": 12,
+      "tool_selection_accuracy": 1.0,
+      "task_completion_rate": 1.0,
+      "average_steps": 1.833,
+      "median_local_latency_ms": 123.68,
+      "checkpoint_recovery_rate": 1.0
+    }
+  ],
+  "scope": "Deterministic Fake Planner/Tool regression. Latency measures local orchestration overhead only, not live LLM or GPU retrieval."
+}

@@ -8,7 +8,7 @@
       "tool_selection_accuracy": 1.0,
       "task_completion_rate": 1.0,
       "average_steps": 1.833,
-      "median_local_latency_ms": 88.37,
+      "median_local_latency_ms": 71.45,
       "checkpoint_recovery_rate": 1.0
     },
     {
@@ -17,7 +17,7 @@
       "tool_selection_accuracy": 1.0,
       "task_completion_rate": 1.0,
       "average_steps": 1.833,
-      "median_local_latency_ms": 123.68,
+      "median_local_latency_ms": 104.4,
       "checkpoint_recovery_rate": 1.0
     }
   ],

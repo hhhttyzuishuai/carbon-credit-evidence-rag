@@ -44,14 +44,20 @@ class DeepSeekToolPlanner:
         api_key: str | None = None,
         model: str | None = None,
         base_url: str | None = None,
+        thinking_mode: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 900,
     ) -> None:
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-        self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
         self.base_url = base_url or os.getenv(
             "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
         )
+        self.thinking_mode = thinking_mode or os.getenv(
+            "DEEPSEEK_THINKING", "disabled"
+        )
+        if self.thinking_mode not in {"enabled", "disabled"}:
+            raise ValueError("DEEPSEEK_THINKING 仅支持 enabled 或 disabled。")
         self.temperature = temperature
         self.max_tokens = max_tokens
 
@@ -75,6 +81,7 @@ class DeepSeekToolPlanner:
             tool_choice="auto",
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            extra_body={"thinking": {"type": self.thinking_mode}},
         )
         message = response.choices[0].message
         if message.tool_calls:

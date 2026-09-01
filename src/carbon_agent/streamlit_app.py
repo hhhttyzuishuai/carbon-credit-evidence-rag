@@ -136,7 +136,7 @@ def main() -> None:
     st.markdown(
         """
         <div class="hero">
-          <span class="runtime-pill">PORTFOLIO · V6</span>
+          <span class="runtime-pill">OPEN SOURCE · V6.1</span>
           <h1>Carbon Credit Evidence Agent</h1>
           <p>LangGraph 状态编排 · LangChain 工具接口 · 双语证据检索 · 可恢复执行</p>
         </div>

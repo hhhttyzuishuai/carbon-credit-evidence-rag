@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from .bootstrap import create_default_orchestrator
 from .contracts import AgentRequest
+from . import __version__
 
 
 class AgentRuntime(Protocol):
@@ -23,7 +24,7 @@ def create_app(orchestrator: AgentRuntime | None = None):
     active_orchestrator = orchestrator or create_default_orchestrator()
     app = FastAPI(
         title="Carbon Credit Agent API",
-        version="6.0.0",
+        version=__version__,
         description="Evidence-grounded assistant; all risk outputs require human review.",
     )
 
@@ -40,7 +41,7 @@ def create_app(orchestrator: AgentRuntime | None = None):
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "version": "6.0.0"}
+        return {"status": "ok", "version": __version__}
 
     @app.post("/v1/agent/chat")
     def chat(body: ChatRequest) -> dict[str, Any]:

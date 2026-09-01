@@ -71,12 +71,20 @@ class LangChainDeepSeekPlanner:
         self,
         api_key: str | None = None,
         model_name: str | None = None,
+        thinking_mode: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 900,
         model: Any | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-        self.model_name = model_name or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        self.model_name = model_name or os.getenv(
+            "DEEPSEEK_MODEL", "deepseek-v4-flash"
+        )
+        self.thinking_mode = thinking_mode or os.getenv(
+            "DEEPSEEK_THINKING", "disabled"
+        )
+        if self.thinking_mode not in {"enabled", "disabled"}:
+            raise ValueError("DEEPSEEK_THINKING 仅支持 enabled 或 disabled。")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self._provided_model = model
@@ -96,6 +104,7 @@ class LangChainDeepSeekPlanner:
             temperature=self.temperature,
             max_tokens=self.max_tokens,
             max_retries=2,
+            extra_body={"thinking": {"type": self.thinking_mode}},
         )
 
     def decide(

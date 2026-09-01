@@ -1,5 +1,15 @@
 # Changelog
 
+## Agent V6.1.0 — Python 3.10 and open-source readiness
+
+- Restored and verified the Windows Python 3.10 development path;
+- load `.env` consistently for CLI, API, and Streamlit runtimes;
+- switched both DeepSeek planners to the current `deepseek-v4-flash` default;
+- rewrote public documentation for installation, operation, data preparation,
+  evaluation, security boundaries, and contribution;
+- added the MIT License and contribution guide;
+- replaced private career notes with a technical runtime comparison.
+
 ## Agent V6.0.0 — LangGraph dual runtime and visual console
 
 - Added a LangGraph `StateGraph` runtime with planner, tool-executor and
@@ -8,9 +18,9 @@
   integration;
 - added LangGraph SQLite checkpointing, graph introspection and architecture API;
 - added a reproducible V5/V6 comparison on the same 12-case fixture set;
-- rebuilt Streamlit as a visual portfolio console with runtime switching,
+- rebuilt Streamlit as a visual control console with runtime switching,
   execution graph, evidence metrics and event timelines;
-- added GitHub-rendered architecture artwork and resume-ready comparison notes;
+- added GitHub-rendered architecture artwork and runtime comparison notes;
 - expanded the offline suite to 42 tests and added V6 CI evaluation.
 
 ## Agent V5.0.0 — resumable agent harness
@@ -25,11 +35,11 @@
 - unified CLI, FastAPI and Streamlit on the same runtime;
 - added citation enforcement, 34 offline tests and a 12-case V5 harness regression.
 
-## Agent V4.1.0 — portfolio release
+## Agent V4.1.0 — documented release
 
 - Added committed routing regression cases and a reproducible evaluator;
 - added GitHub Actions offline regression gate;
-- added architecture, learning notes, limitations and resume-ready project report;
+- added architecture, design notes, limitations and project report;
 - retained V1–V4 release notes and tags as independent milestones.
 
 ## Agent V4.0.0 — multi-agent business tools

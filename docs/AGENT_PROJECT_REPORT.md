@@ -20,6 +20,7 @@ LangChain 重构编排层。两版共用数据、工具和回归集，因此可�
 | V4 | 确定性多 Agent 路由和业务工具 | `agent-v4.0.0` |
 | V5 | 自研工具循环、幂等、检查点、MCP | `agent-v5.0.0` |
 | V6 | LangGraph、LangChain、双运行时和可视化 | `agent-v6.0.0` |
+| V6.1 | Python 3.10、DeepSeek V4和开源项目文档 | `agent-v6.1.0` |
 
 详细发布说明位于 `docs/releases/`。
 
@@ -100,7 +101,7 @@ V6 没有删除 V5，也没有重新实现底层知识库。框架层发生变�
   节点恢复；
 - Streamlit首页、状态图和双运行时对比页已完成本地浏览器视觉检查。
 
-一次本地确定性回归中，V5中位编排耗时为88.37 ms，V6为123.68 ms。该测试不含
+一次 Python 3.10 本地确定性回归中，V5中位编排耗时为71.45 ms，V6为104.40 ms。该测试不含
 LLM、网络和 GPU 检索，只能说明当前 Fixture 下 LangGraph 增加了一定框架开销，
 不能作为线上性能结论。
 
@@ -115,32 +116,24 @@ Streamlit 控制台提供四个页面：
 
 GitHub README 同时嵌入 SVG 架构图，即使不运行 Python 也能了解系统结构。
 
-## 简历材料
-
-推荐标题：**碳信用披露审核 Agent 系统**
-
-可直接使用的完整版和精简版位于
-[`V5_V6_RESUME_COMPARISON.md`](V5_V6_RESUME_COMPARISON.md)。
-
-项目地址：<https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag>
-
-## 面试重点
+## 设计选择
 
 ### 为什么保留两个运行时
 
-V5用来说明对Agent循环、状态和恢复机制的理解，V6用来说明如何把自研实现迁移到
-主流框架。两版共用回归集，避免只展示框架代码而无法判断行为是否一致。
+V5保留对Agent循环、状态和恢复机制的直接控制，V6将相同工具和策略放入
+LangGraph状态图。两版共用回归集，可以验证框架迁移是否改变既有行为。详细对比见
+[`RUNTIME_COMPARISON.md`](RUNTIME_COMPARISON.md)。
 
 ### 为什么不是多 Agent 互相讨论
 
 当前任务主要是工具选择和受控执行，单个 Planner 加窄权限工具更容易测试和审计。
-V4保留了职责拆分的多 Agent 实现，但V6没有为了简历关键词增加无必要的对话成本。
-如果出现需要独立上下文、不同权限或并行处理的任务，再把专业节点拆为子图更合理。
+V4保留职责拆分的多 Agent 实现；V6只在独立上下文、不同权限或并行执行确实需要时
+才把专业节点拆为子图，避免无必要的模型调用。
 
 ### 为什么不能称为生产级
 
 项目没有企业 SSO/RBAC、租户隔离、KMS、分布式队列、PostgreSQL Checkpointer、
-OpenTelemetry、SLA、线上告警和真实流量压测。SQLite适合本地作品集和小型演示，
+OpenTelemetry、SLA、线上告警和真实流量压测。SQLite适合本地开发和小型演示，
 不是生产部署证明。
 
 ## 演示前检查

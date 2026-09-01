@@ -21,6 +21,7 @@ class DeepSeekGateway:
         api_key: str | None = None,
         model: str | None = None,
         base_url: str | None = None,
+        thinking_mode: str | None = None,
         temperature: float = 0.2,
         max_tokens: int = 800,
     ) -> None:
@@ -29,6 +30,11 @@ class DeepSeekGateway:
         self.base_url = base_url or os.getenv(
             "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
         )
+        self.thinking_mode = thinking_mode or os.getenv(
+            "DEEPSEEK_THINKING", "disabled"
+        )
+        if self.thinking_mode not in {"enabled", "disabled"}:
+            raise ValueError("DEEPSEEK_THINKING 仅支持 enabled 或 disabled。")
         self.temperature = temperature
         self.max_tokens = max_tokens
 
@@ -49,6 +55,7 @@ class DeepSeekGateway:
             messages=[message.to_llm_dict() for message in messages],
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            extra_body={"thinking": {"type": self.thinking_mode}},
         )
         return response.choices[0].message.content or ""
 

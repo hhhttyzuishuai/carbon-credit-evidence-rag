@@ -18,9 +18,19 @@ from .planner import DeepSeekToolPlanner
 from .tooling import build_default_tool_registry
 
 
+def _load_project_environment() -> None:
+    """Load local configuration for CLI, API, and Streamlit entry points."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv()
+
+
 def create_custom_runtime(
     runtime_directory: str | Path = "runtime",
 ) -> AgentHarness:
+    _load_project_environment()
     runtime_path = Path(runtime_directory)
     return AgentHarness(
         planner=DeepSeekToolPlanner(),
@@ -38,6 +48,7 @@ def create_custom_runtime(
 def create_langgraph_runtime(
     runtime_directory: str | Path = "runtime",
 ) -> LangGraphAgentRuntime:
+    _load_project_environment()
     try:
         from langgraph.checkpoint.sqlite import SqliteSaver
     except ImportError as error:

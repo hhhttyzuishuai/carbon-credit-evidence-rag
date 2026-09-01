@@ -1,70 +1,173 @@
 # Carbon Credit Evidence Review Agent
 
 [![Agent Tests](https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag/actions/workflows/agent-tests.yml/badge.svg)](https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag/actions/workflows/agent-tests.yml)
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)
-![LangGraph](https://img.shields.io/badge/LangGraph-1.2.11-20c997)
-![LangChain](https://img.shields.io/badge/LangChain-1.3.18-1C3C3C)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://www.python.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1.2.11-20c997)](https://github.com/langchain-ai/langgraph)
+[![LangChain](https://img.shields.io/badge/LangChain-1.3.18-1C3C3C)](https://github.com/langchain-ai/langchain)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-面向碳信用披露审核的可追溯 Agent 系统。Agent 可以根据问题选择本地知识检索、
-项目登记查询或实验性风险审核工具，并在输出前检查证据引用和业务边界。项目同时
-保留 V5 自研 Harness 与 V6 LangGraph Runtime，用同一套测试和业务工具比较两种
-编排方式。
+一个面向碳信用披露审核的可追溯 Agent。系统根据问题调用知识检索、项目登记查询
+或实验性风险审核工具，并在返回结果前检查参数、审批状态和证据引用。
 
-> 这是作品集级工程原型，不是生产系统，也不替代法律、合规、审计或绿洗判断。
+仓库同时保留自研 Agent Harness 和 LangGraph Runtime。两套运行时共用相同的工具、
+安全规则与回归数据，用于比较手写执行循环和框架化状态图在行为、恢复方式与编排
+开销上的差异。
 
-![V6 architecture](docs/assets/agent-v6-architecture.svg)
+> 本项目是研究和工程原型，不提供法律、合规或审计意见，也不会自动判定企业是否
+> 存在绿洗行为。
 
-## 项目入口
+![Agent V6 architecture](docs/assets/agent-v6-architecture.svg)
 
-- GitHub：<https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag>
-- 可视化控制台：`streamlit run src/step_13_streamlit_app.py`
-- API 文档：启动服务后访问 `http://127.0.0.1:8000/docs`
-- 简历版本对比：[docs/V5_V6_RESUME_COMPARISON.md](docs/V5_V6_RESUME_COMPARISON.md)
-- 完整项目报告：[docs/AGENT_PROJECT_REPORT.md](docs/AGENT_PROJECT_REPORT.md)
+## 功能
 
-## 版本演进
+- 使用 LangGraph 编排 Planner、Tool Executor 和 Output Verifier；
+- 使用 LangChain `StructuredTool` 定义带 Pydantic Schema 的工具接口；
+- 通过 DeepSeek API 完成模型决策和标准 Tool Calling；
+- 支持中英文 Dense、BM25、RRF 与 Cross-Encoder 检索；
+- 支持项目登记记录精确查询和行级来源追踪；
+- 支持 SQLite 多轮记忆、请求幂等、检查点和失败恢复；
+- 敏感风险工具执行前必须获得显式审批；
+- 提供 CLI、FastAPI、Streamlit 和只读 MCP Server；
+- 审计日志会递归脱敏，不记录模型隐藏推理过程。
 
-| 版本 | 能力 | Git 标签 |
+## 运行时
+
+| 对比项 | Custom Harness | LangGraph Runtime |
 |---|---|---|
-| V1 | 无状态问答与可替换 LLM Gateway | `agent-v1.0.0` |
-| V2 | SQLite 多轮记忆、原子 Turn、有限历史窗口 | `agent-v2.0.0` |
-| V3 | Hybrid + Reranker 知识库、页码来源、引用审计 | `agent-v3.0.0` |
-| V4 | 确定性多 Agent 路由、业务工具、审批和 FastAPI | `agent-v4.0.0` |
-| V5 | 自研 Agent Loop、Tool Registry、幂等、检查点和 MCP | `agent-v5.0.0` |
-| V6 | LangGraph StateGraph、LangChain Tools、双运行时与可视化 | `agent-v6.0.0` |
-
-每个版本的设计与边界保存在 [docs/releases](docs/releases)。
-
-## V5 与 V6 的区别
-
-| 对比项 | V5 Custom Harness | V6 LangGraph |
-|---|---|---|
-| 模型接口 | OpenAI-compatible 自定义 Planner | 官方 `ChatDeepSeek` 集成 |
+| 模型接口 | OpenAI-compatible Planner | `ChatDeepSeek` |
 | 工具接口 | 自定义 `ToolSpec` | LangChain `StructuredTool` |
-| 编排方式 | 手写受限循环 | `StateGraph` 节点与条件边 |
-| 检查点 | 自建 SQLite Execution Store | LangGraph Checkpointer + 幂等账本 |
-| 可观察性 | 自定义事件记录 | 节点事件、Graph Introspection、事件重放 |
-| 适用价值 | 机制透明、便于理解底层 | 生态标准、便于增加节点和子图 |
+| 编排方式 | 有界 Python 循环 | `StateGraph` 节点与条件边 |
+| 检查点 | SQLite Execution Store | LangGraph SQLite Checkpointer |
+| 恢复机制 | 事件账本与显式状态恢复 | 节点检查点与幂等账本 |
+| 切换方式 | `--runtime custom` | `--runtime langgraph` |
 
-两版共用 Knowledge、Registry、Risk Review、引用校验和审批策略，因此比较的是
-编排层，而不是换一套数据制造指标差异。默认运行时为 V6，可用
-`--runtime custom` 切回 V5。
+默认使用 LangGraph Runtime。完整设计差异见
+[Runtime comparison](docs/RUNTIME_COMPARISON.md)。
 
-## 核心能力
+## 快速开始
 
-- LangGraph 节点：`planner → tool_executor → output_verifier`，通过条件边循环；
-- LangChain `StructuredTool` 统一工具参数 Schema，DeepSeek 返回标准 Tool Call；
-- 最多执行6步，支持工具重试、敏感工具审批和异常停止；
-- Request ID 幂等：完成请求直接重放，同 ID 不同内容拒绝执行；
-- LangGraph Checkpointer 与 SQLite 事件账本支持失败节点恢复；
-- 多轮历史超限后压缩，大工具结果按 SHA-256 外置；
-- 知识与登记回答必须引用本轮 `[S编号]` 或 `[T编号]`；
-- CLI、FastAPI、Streamlit 和只读 MCP 使用同一套业务工具；
-- JSONL 审计日志递归脱敏，不记录隐藏思维链。
+### 1. 创建 Python 3.10 环境
 
-## 数据与评测
+Windows PowerShell：
 
-知识库包含 9 份静态中英文 PDF，共 797 页、2,572 个文本块。50 条人工标注
+```powershell
+git clone https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag.git
+Set-Location carbon-credit-evidence-rag
+
+py -3.10 -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install --upgrade pip
+& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
+项目声明支持 Python 3.10 及以上版本。本仓库的 Windows 本地验证环境为
+Python 3.10.11。
+
+`sentence-transformers` 会安装可用的 PyTorch。需要 CUDA 时，请先按照
+[PyTorch 官方安装说明](https://pytorch.org/get-started/locally/)安装与显卡匹配的
+版本，再安装本项目依赖。
+
+### 2. 配置 DeepSeek
+
+```powershell
+Copy-Item .env.example .env
+```
+
+编辑 `.env`：
+
+```dotenv
+DEEPSEEK_API_KEY=your_api_key
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_THINKING=disabled
+```
+
+Agent 工具循环默认关闭思考模式，避免额外推理 token 干扰标准 Tool Calling。需要
+实验思考模式时可改为 `enabled`，同时应提高输出 token 上限并保留工具回合中的
+`reasoning_content`。
+
+`.env` 已加入 `.gitignore`。不要把 API Key 写进源码、日志或提交记录。
+
+### 3. 启动可视化控制台
+
+```powershell
+& .\.venv\Scripts\python.exe -m streamlit run src\step_13_streamlit_app.py
+```
+
+打开 <http://localhost:8501>。页面包含：
+
+- Agent 控制台和 V5/V6 运行时切换；
+- LangGraph 节点与条件边；
+- 工具轨迹、来源、审批状态和执行事件；
+- 双运行时回归指标；
+- Dense、BM25、RRF 与 Cross-Encoder 检索指标。
+
+架构和离线指标不依赖 API Key。执行真实问题时会读取 `.env` 中的 DeepSeek
+配置；知识检索还需要本地语料、索引和模型。
+
+## 命令行
+
+LangGraph：
+
+```powershell
+& .\.venv\Scripts\python.exe -m carbon_agent.cli run `
+  "Article 6.2 有哪些要求？请引用本地证据。" `
+  --runtime langgraph
+```
+
+Custom Harness：
+
+```powershell
+& .\.venv\Scripts\python.exe -m carbon_agent.cli run `
+  "Article 6.2 有哪些要求？请引用本地证据。" `
+  --runtime custom
+```
+
+## FastAPI
+
+```powershell
+& .\.venv\Scripts\python.exe -m carbon_agent.cli serve `
+  --runtime langgraph --port 8000
+```
+
+启动后访问 <http://127.0.0.1:8000/docs>。主要接口：
+
+- `GET /health`
+- `POST /v1/agent/chat`
+- `GET /v1/executions/{request_id}/events`
+- `GET /v1/architecture`
+
+## MCP Server
+
+```powershell
+& .\.venv\Scripts\python.exe -m carbon_agent.cli mcp-server
+```
+
+MCP stdio Server 只暴露 `knowledge_search` 和 `registry_lookup`。需要审批的风险
+审核工具不会通过 MCP 暴露。
+
+## 构建本地知识库
+
+原始 PDF、处理后语料、向量索引和模型文件不提交到仓库。把有权使用的 PDF 放入
+`data/raw/`，然后依次执行：
+
+```powershell
+& .\.venv\Scripts\python.exe src\step_01_pdf_loader.py
+& .\.venv\Scripts\python.exe src\step_02_quality_check.py
+& .\.venv\Scripts\python.exe src\step_03_chunker.py
+& .\.venv\Scripts\python.exe src\step_04_chunk_quality_check.py
+& .\.venv\Scripts\python.exe src\step_06_build_dense_index.py
+```
+
+检索实现位于 `step_07` 至 `step_10`，评测入口为
+`src/step_11_evaluate_retrieval.py`。每个文本块保留来源文件、物理页码、语言和
+文档类型，生成结果只能引用本轮检索返回的 Source ID。
+
+登记数据同样采用本地文件。`src/step_14_registry_loader.py` 负责生成规范化记录，
+`src/step_15_registry_lookup.py` 按 Project ID 查询。
+
+## 评测
+
+当前知识库实验使用 9 份中英文 PDF，共 797 页、2,572 个文本块。50 条人工标注
 问题以来源文件和物理页码作为相关性标准。
 
 | 方法 | Hit@1 | Hit@3 | MRR |
@@ -74,84 +177,14 @@
 | RRF Hybrid Retrieval | 0.580 | 0.820 | 0.722 |
 | Cross-Encoder Reranker | **0.780** | **0.980** | **0.863** |
 
-Agent 离线验收：
+Agent 离线回归包括：
 
 - 42 个单元、API 与集成测试；
-- V4 固定路由回归：24/24；
-- V5 与 V6 在同一12条任务上均为工具选择 12/12、完成 12/12；
-- 两版平均执行步数均为1.833，故障注入恢复均为4/4；
-- 当前一次本地 Fake Tool 回归中，V5中位编排耗时88.37 ms，V6为123.68 ms。
+- 24 条固定路由用例；
+- 12 条双运行时工具调用用例；
+- 4 条故障注入与检查点恢复用例。
 
-最后一项只测本机 SQLite 和框架编排开销，不包含真实 LLM、网络或 GPU 检索，
-不能解释为 V5 的实际业务性能优于 V6。固定回归集也不代表开放域泛化能力。
-
-## 可视化控制台
-
-Streamlit 页面不只是聊天框，还包含：
-
-- V5/V6 运行时切换；
-- LangGraph 节点与条件边可视化；
-- 工具轨迹、来源和执行事件；
-- 双运行时指标对比；
-- Dense、BM25、RRF、Cross-Encoder 检索指标图。
-
-```powershell
-& .\.venv\Scripts\python.exe -m streamlit run src\step_13_streamlit_app.py
-```
-
-页面不依赖 API Key 即可查看架构和离线指标；执行真实问题需要配置 DeepSeek，
-知识问答还需要本地索引与模型。
-
-## 本地运行
-
-推荐在 PyCharm 中新建 Python 3.10 虚拟环境：
-
-```powershell
-py -3.10 -m venv .venv
-& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-$env:PYTHONPATH="src"
-```
-
-复制 `.env.example` 为 `.env`，填写 `DEEPSEEK_API_KEY`。V6 使用
-`langchain-deepseek` 的 `ChatDeepSeek(model="deepseek-chat")`；API Key、原始
-数据、索引、模型和运行日志不会提交 Git。
-
-### CLI
-
-```powershell
-# V6 LangGraph（默认）
-& .\.venv\Scripts\python.exe -m carbon_agent.cli run `
-  "Article 6.2 有哪些要求？请给本地证据" --runtime langgraph
-
-# V5 自研 Harness
-& .\.venv\Scripts\python.exe -m carbon_agent.cli run `
-  "Article 6.2 有哪些要求？请给本地证据" --runtime custom
-```
-
-### FastAPI
-
-```powershell
-& .\.venv\Scripts\python.exe -m carbon_agent.cli serve `
-  --runtime langgraph --port 8000
-```
-
-接口包括：
-
-- `GET /health`
-- `POST /v1/agent/chat`
-- `GET /v1/executions/{request_id}/events`
-- `GET /v1/architecture`
-
-### MCP Server
-
-```powershell
-& .\.venv\Scripts\python.exe -m carbon_agent.cli mcp-server
-```
-
-MCP stdio Server 只暴露 `knowledge_search` 与 `registry_lookup`，不会暴露实验性
-风险审核工具。
-
-### 测试与评测
+运行全部离线检查：
 
 ```powershell
 & .\.venv\Scripts\python.exe -m unittest discover -s tests -v
@@ -160,25 +193,53 @@ MCP stdio Server 只暴露 `knowledge_search` 与 `registry_lookup`，不会暴�
 & .\.venv\Scripts\python.exe scripts\evaluate_v6_runtime_comparison.py
 ```
 
-## 安全与工程边界
+这些结果来自固定离线数据，不代表开放域工具选择能力或线上服务质量。评测脚本、
+输入和输出 Schema 均保存在仓库中，便于重复运行。
 
-- 登记记录来自 `v2026-02` 静态 Excel 快照，不代表登记机构实时状态；
-- 风险模型验证数据有限，只能作为实验性审核信号；
-- 当前 SQLite Checkpointer 适合单机作品集，不等于生产级分布式持久化；
-- 未接入企业 SSO/RBAC、租户隔离、KMS、队列、限流、OpenTelemetry 和真实压测；
-- 系统不会自动输出企业绿洗、违法或合规结论。
-
-## 项目结构
+## 目录结构
 
 ```text
 src/carbon_agent/
-  harness.py             # V5 自研运行时
-  langgraph_runtime.py   # V6 StateGraph 运行时
-  langchain_adapter.py   # ChatDeepSeek 与 StructuredTool
-  tooling.py             # 共用业务工具与权限
-  streamlit_app.py       # 可视化控制台
-tests/                   # 42 个离线测试
-data/eval/               # 检索、路由、Harness 与双运行时评测
-scripts/                 # 可复现评测脚本
-docs/releases/           # V1-V6 版本留档
+  harness.py             # Custom Harness
+  langgraph_runtime.py   # LangGraph StateGraph Runtime
+  langchain_adapter.py   # ChatDeepSeek and StructuredTool adapters
+  tooling.py             # Tool registry, validation and approval
+  verification.py        # Citation and output verification
+  streamlit_app.py       # Streamlit console
+tests/                   # Offline tests
+data/eval/               # Committed evaluation fixtures
+scripts/                 # Reproducible evaluation scripts
+docs/releases/           # Versioned design notes
 ```
+
+## 已知边界
+
+- 登记记录是本地静态快照，不代表登记机构的实时状态；
+- 风险模型只能产生实验性审核信号，不能代替人工判断；
+- SQLite Checkpointer 适合单机运行，不适合分布式部署；
+- 当前没有企业 SSO、RBAC、租户隔离、KMS、队列和线上 SLA；
+- 固定回归结果不能外推为真实业务准确率。
+
+## 版本
+
+| 版本 | 主要变化 | Git 标签 |
+|---|---|---|
+| V1 | 无状态问答与可替换 LLM Gateway | `agent-v1.0.0` |
+| V2 | SQLite 多轮记忆 | `agent-v2.0.0` |
+| V3 | 知识检索、页码来源与引用校验 | `agent-v3.0.0` |
+| V4 | 多 Agent 路由、业务工具、审批与 FastAPI | `agent-v4.0.0` |
+| V5 | 自研工具循环、幂等、检查点与 MCP | `agent-v5.0.0` |
+| V6 | LangGraph、LangChain、双运行时与可视化 | `agent-v6.0.0` |
+| V6.1 | Python 3.10 本地运行、DeepSeek V4 与开源文档 | `agent-v6.1.0` |
+
+各版本的设计记录位于 [docs/releases](docs/releases)。
+
+## 参与贡献
+
+提交 Issue 前请附上 Python 版本、运行命令、错误信息和最小复现步骤。代码改动应
+同时添加或更新测试。详细流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## License
+
+本项目采用 [MIT License](LICENSE)。数据源、模型和第三方依赖仍受各自许可证与
+使用条款约束。

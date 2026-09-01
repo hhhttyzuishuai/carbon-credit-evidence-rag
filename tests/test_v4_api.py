@@ -28,7 +28,7 @@ class AgentApiTests(unittest.TestCase):
     def test_health_endpoint(self) -> None:
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok", "version": "6.1.0"})
+        self.assertEqual(response.json(), {"status": "ok", "version": "6.1.1"})
 
     def test_architecture_endpoint_has_safe_fallback(self) -> None:
         response = self.client.get("/v1/architecture")

@@ -179,7 +179,7 @@ MCP stdio Server 只暴露 `knowledge_search` 和 `registry_lookup`。需要审�
 
 Agent 离线回归包括：
 
-- 42 个单元、API 与集成测试；
+- 43 个单元、API 与集成测试；
 - 24 条固定路由用例；
 - 12 条双运行时工具调用用例；
 - 4 条故障注入与检查点恢复用例。
@@ -230,6 +230,7 @@ docs/releases/           # Versioned design notes
 | V4 | 多 Agent 路由、业务工具、审批与 FastAPI | `agent-v4.0.0` |
 | V5 | 自研工具循环、幂等、检查点与 MCP | `agent-v5.0.0` |
 | V6 | LangGraph、LangChain、双运行时与可视化 | `agent-v6.0.0` |
+| V6.1.1 | Streamlit 新请求状态修复与 43 项回归测试 | `agent-v6.1.1` |
 | V6.1 | Python 3.10 本地运行、DeepSeek V4 与开源文档 | `agent-v6.1.0` |
 
 各版本的设计记录位于 [docs/releases](docs/releases)。

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "carbon-credit-agent"
-version = "6.1.0"
+version = "6.1.1"
 description = "An evidence-grounded agent for carbon-credit review with custom and LangGraph runtimes"
 readme = "README.md"
 license = "MIT"

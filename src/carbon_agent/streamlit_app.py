@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, Callable
 from uuid import uuid4
 
 from .bootstrap import create_default_orchestrator
@@ -13,6 +14,17 @@ from .contracts import AgentRequest
 PROJECT_URL = "https://github.com/hhhttyzuishuai/carbon-credit-evidence-rag"
 ROOT = Path(__file__).resolve().parents[2]
 COMPARISON_PATH = ROOT / "data" / "eval" / "v6_runtime_comparison.json"
+
+
+def _begin_new_request(
+    state: Any,
+    request_id_factory: Callable[[], Any] = uuid4,
+) -> None:
+    """Rotate the idempotency key before Streamlit re-runs the script."""
+
+    state["request_id"] = request_id_factory().hex
+    state.pop("last_response", None)
+    state.pop("last_events", None)
 
 
 def _comparison_data() -> dict:
@@ -125,18 +137,25 @@ def main() -> None:
             ["auto", "chat", "knowledge", "registry", "risk_review"],
         )
         approval = st.checkbox("授权实验性风险审核")
-        st.text_input("Request ID", key="request_id")
+        st.text_input(
+            "Request ID",
+            key="request_id",
+            help="同一请求重试时保留；提出新问题前生成新的 Request ID。",
+        )
         st.caption(f"Session · {st.session_state.session_id[:12]}")
-        if st.button("生成新的 Request ID", width="stretch"):
-            st.session_state.request_id = uuid4().hex
-            st.rerun()
+        st.button(
+            "生成新的 Request ID",
+            width="stretch",
+            on_click=_begin_new_request,
+            args=(st.session_state,),
+        )
         st.markdown("---")
         st.link_button("查看 GitHub 项目", PROJECT_URL, width="stretch")
 
     st.markdown(
         """
         <div class="hero">
-          <span class="runtime-pill">OPEN SOURCE · V6.1</span>
+          <span class="runtime-pill">OPEN SOURCE · V6.1.1</span>
           <h1>Carbon Credit Evidence Agent</h1>
           <p>LangGraph 状态编排 · LangChain 工具接口 · 双语证据检索 · 可恢复执行</p>
         </div>
@@ -152,7 +171,7 @@ def main() -> None:
     with cards[2]:
         _metric_card(st, "0.863", "Reranker MRR")
     with cards[3]:
-        _metric_card(st, "42", "离线测试")
+        _metric_card(st, "43", "离线测试")
 
     console_tab, graph_tab, compare_tab, evidence_tab = st.tabs(
         ["Agent 控制台", "执行图", "V5 / V6 对比", "评测与证据"]

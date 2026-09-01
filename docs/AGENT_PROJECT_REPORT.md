@@ -20,6 +20,7 @@ LangChain 重构编排层。两版共用数据、工具和回归集，因此可�
 | V4 | 确定性多 Agent 路由和业务工具 | `agent-v4.0.0` |
 | V5 | 自研工具循环、幂等、检查点、MCP | `agent-v5.0.0` |
 | V6 | LangGraph、LangChain、双运行时和可视化 | `agent-v6.0.0` |
+| V6.1.1 | Streamlit 新请求状态修复与 43 项回归测试 | `agent-v6.1.1` |
 | V6.1 | Python 3.10、DeepSeek V4和开源项目文档 | `agent-v6.1.0` |
 
 详细发布说明位于 `docs/releases/`。
@@ -92,7 +93,7 @@ V6 没有删除 V5，也没有重新实现底层知识库。框架层发生变�
 
 ## 验收结果
 
-- 42个离线测试通过；
+- 43个离线测试通过；
 - V4路由回归24/24；
 - V5和V6在同一12条任务上均为工具选择12/12、任务完成12/12；
 - 两版平均执行步数均为1.833；
@@ -141,6 +142,6 @@ OpenTelemetry、SLA、线上告警和真实流量压测。SQLite适合本地开�
 1. 在 PyCharm 创建 Python3.10虚拟环境并安装依赖；
 2. 按本机 CUDA 安装 PyTorch，重跑50条检索评测；
 3. 配置 DeepSeek Key，分别执行 V5和V6真实 Tool Calling；
-4. 运行42个测试和全部三组 Agent 回归脚本；
+4. 运行43个测试和全部三组 Agent 回归脚本；
 5. 启动 Streamlit，演示运行时切换、执行图、事件和引用来源；
 6. 不展示或提交 API Key、真实用户输入和 Runtime 数据库。

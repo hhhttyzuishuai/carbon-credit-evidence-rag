@@ -1,5 +1,11 @@
 # Changelog
 
+## Agent V6.1.1 — Streamlit request lifecycle fix
+
+- Fixed Streamlit request rotation by updating widget state through a callback;
+- cleared stale response and event panels when starting a new request;
+- expanded the offline suite to 43 tests with a request-state regression case.
+
 ## Agent V6.1.0 — Python 3.10 and open-source readiness
 
 - Restored and verified the Windows Python 3.10 development path;

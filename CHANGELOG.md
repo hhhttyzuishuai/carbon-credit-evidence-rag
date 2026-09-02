@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Renamed the Streamlit launch script to `src/streamlit_console.py`. The old
+  `src/step_13_streamlit_app.py` path no longer exists, so the run command in
+  existing checkouts must be updated;
+- made the launcher bootstrap `sys.path` explicitly, which removes the
+  `pip install -e .` requirement for starting the console;
+- documented why the launcher and `carbon_agent/streamlit_app.py` are not
+  duplicates, and removed Python 3.12 bytecode leftovers.
+
 ## Agent V6.1.1 — Streamlit request lifecycle fix
 
 - Fixed Streamlit request rotation by updating widget state through a callback;

@@ -90,7 +90,7 @@ Agent 工具循环默认关闭思考模式，避免额外推理 token 干扰标�
 ### 3. 启动可视化控制台
 
 ```powershell
-& .\.venv\Scripts\python.exe -m streamlit run src\step_13_streamlit_app.py
+& .\.venv\Scripts\python.exe -m streamlit run src\streamlit_console.py
 ```
 
 打开 <http://localhost:8501>。页面包含：
@@ -199,18 +199,25 @@ Agent 离线回归包括：
 ## 目录结构
 
 ```text
-src/carbon_agent/
-  harness.py             # Custom Harness
-  langgraph_runtime.py   # LangGraph StateGraph Runtime
-  langchain_adapter.py   # ChatDeepSeek and StructuredTool adapters
-  tooling.py             # Tool registry, validation and approval
-  verification.py        # Citation and output verification
-  streamlit_app.py       # Streamlit console
+src/
+  streamlit_console.py   # Streamlit launch script (the runnable entry point)
+  carbon_agent/
+    harness.py           # Custom Harness
+    langgraph_runtime.py # LangGraph StateGraph Runtime
+    langchain_adapter.py # ChatDeepSeek and StructuredTool adapters
+    tooling.py           # Tool registry, validation and approval
+    verification.py      # Citation and output verification
+    streamlit_app.py     # Streamlit console implementation
 tests/                   # Offline tests
 data/eval/               # Committed evaluation fixtures
 scripts/                 # Reproducible evaluation scripts
 docs/releases/           # Versioned design notes
 ```
+
+`streamlit_console.py` 与 `carbon_agent/streamlit_app.py` 不是重复实现。后者
+使用包内相对导入，被 `streamlit run` 当作顶层脚本执行时会因缺少父包而报
+`ImportError`，因此只能被导入。前者负责把 `src/` 加入 `sys.path` 再调用
+`main()`，所以它是唯一可直接启动的入口，同时让 `pip install -e .` 变成可选项。
 
 ## 已知边界
 
